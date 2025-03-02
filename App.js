@@ -14,6 +14,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 // Sample data - will be used only on first launch
 const initialDecks = [
@@ -176,29 +177,115 @@ function FlashcardScreen({ route, navigation }) {
   const { decks, updateDecks } = React.useContext(DataContext);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
   // Find the current deck
   const deck = decks.find((d) => d.id === deckId);
   const cards = deck ? deck.cards : [];
 
+  const deleteDeck = () => {
+    Alert.alert(
+      "Delete Deck",
+      "Are you sure you want to delete this deck? This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          onPress: () => {
+            const updatedDecks = decks.filter((d) => d.id !== deckId);
+            updateDecks(updatedDecks);
+            navigation.goBack();
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
+  const deleteCard = () => {
+    if (cards.length <= 1) {
+      Alert.alert(
+        "Cannot Delete",
+        "You cannot delete the last card in a deck. You can delete the entire deck instead."
+      );
+      return;
+    }
+
+    Alert.alert("Delete Card", "Are you sure you want to delete this card?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        onPress: () => {
+          // Create a new array of cards without the current card
+          const updatedCards = cards.filter(
+            (_, index) => index !== currentCardIndex
+          );
+
+          // Create a new deck with the updated cards
+          const updatedDeck = {
+            ...deck,
+            cards: updatedCards,
+          };
+
+          // Update the decks array
+          const deckIndex = decks.findIndex((d) => d.id === deckId);
+          const updatedDecks = [...decks];
+          updatedDecks[deckIndex] = updatedDeck;
+
+          // Update state and storage
+          updateDecks(updatedDecks);
+
+          // Adjust current index if needed
+          if (currentCardIndex >= updatedCards.length) {
+            setCurrentCardIndex(updatedCards.length - 1);
+          }
+
+          setShowOptions(false);
+        },
+        style: "destructive",
+      },
+    ]);
+  };
+
   // Handle empty deck case
   if (cards.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.headerText}>{deck.title}</Text>
+        <View style={styles.headerWithBack}>
+          <TouchableOpacity
+            style={styles.backArrow}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerText}>{deck.title}</Text>
+          </View>
+        </View>
+
         <Text style={styles.emptyDeckText}>This deck has no cards yet.</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
-        >
-          <Text style={styles.buttonText}>Add Cards</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.backButton]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Back to Decks</Text>
-        </TouchableOpacity>
+
+        <View style={styles.emptyDeckButtons}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
+          >
+            <Text style={styles.buttonText}>Add Cards</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
+            onPress={deleteDeck}
+          >
+            <Text style={styles.buttonText}>Delete Deck</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -225,9 +312,17 @@ function FlashcardScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>{deck.title}</Text>
-        <Text style={styles.subHeaderText}>{deck.language}</Text>
+      <View style={styles.headerWithBack}>
+        <TouchableOpacity
+          style={styles.backArrow}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerText}>{deck.title}</Text>
+          <Text style={styles.subHeaderText}>{deck.language}</Text>
+        </View>
       </View>
 
       <TouchableOpacity style={styles.card} onPress={flipCard}>
@@ -250,21 +345,64 @@ function FlashcardScreen({ route, navigation }) {
         Card {currentCardIndex + 1} of {cards.length}
       </Text>
 
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.button, styles.addCardButton]}
-          onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
-        >
-          <Text style={styles.buttonText}>Add Card</Text>
-        </TouchableOpacity>
+      {showOptions ? (
+        <View style={styles.optionsContainer}>
+          <TouchableOpacity
+            style={[styles.button, styles.addCardButton]}
+            onPress={() => {
+              setShowOptions(false);
+              navigation.navigate("AddCard", { deckId: deck.id });
+            }}
+          >
+            <Text style={styles.buttonText}>Add Card</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.backButton]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Back to Decks</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
+            onPress={deleteCard}
+          >
+            <Text style={styles.buttonText}>Delete Current Card</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
+            onPress={deleteDeck}
+          >
+            <Text style={styles.buttonText}>Delete Deck</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton]}
+            onPress={() => setShowOptions(false)}
+          >
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.stackedButtons}>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.addCardButton,
+              styles.fullWidthButton,
+            ]}
+            onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
+          >
+            <Text style={styles.buttonText}>Add Card</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.optionsButton,
+              styles.fullWidthButton,
+            ]}
+            onPress={() => setShowOptions(true)}
+          >
+            <Text style={styles.buttonText}>Options</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <StatusBar style="auto" />
     </SafeAreaView>
@@ -315,8 +453,18 @@ function AddCardScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.headerText}>Add New Card</Text>
-      <Text style={styles.subHeaderText}>to {deck.title}</Text>
+      <View style={styles.headerWithBack}>
+        <TouchableOpacity
+          style={styles.backArrow}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerText}>Add New Card</Text>
+          <Text style={styles.subHeaderText}>to {deck.title}</Text>
+        </View>
+      </View>
 
       <View style={styles.formContainer}>
         <Text style={styles.label}>Front (Question/Word)</Text>
@@ -339,13 +487,6 @@ function AddCardScreen({ route, navigation }) {
 
         <TouchableOpacity style={styles.button} onPress={addCard}>
           <Text style={styles.buttonText}>Add Card</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, styles.cancelButton]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -579,5 +720,43 @@ const styles = StyleSheet.create({
   actionButtons: {
     width: "100%",
     marginTop: 10,
+  },
+  optionsContainer: {
+    width: "100%",
+    marginTop: 10,
+  },
+  optionsButton: {
+    backgroundColor: "#4a86e8",
+  },
+  deleteButton: {
+    backgroundColor: "#ff5252",
+  },
+  headerWithBack: {
+    flexDirection: "row",
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 30,
+    paddingTop: 10,
+  },
+  backArrow: {
+    padding: 10,
+    position: "absolute",
+    left: 0,
+    zIndex: 10,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  stackedButtons: {
+    width: "100%",
+    marginTop: 20,
+  },
+  fullWidthButton: {
+    width: "100%",
+  },
+  emptyDeckButtons: {
+    width: "100%",
+    marginTop: 20,
   },
 });
