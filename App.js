@@ -178,80 +178,21 @@ function FlashcardScreen({ route, navigation }) {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [studyMode, setStudyMode] = useState(false);
+  const [cardsToReview, setCardsToReview] = useState([]);
+  const [cardStatuses, setCardStatuses] = useState({});
 
   // Find the current deck
   const deck = decks.find((d) => d.id === deckId);
   const cards = deck ? deck.cards : [];
 
-  const deleteDeck = () => {
-    Alert.alert(
-      "Delete Deck",
-      "Are you sure you want to delete this deck? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          onPress: () => {
-            const updatedDecks = decks.filter((d) => d.id !== deckId);
-            updateDecks(updatedDecks);
-            navigation.goBack();
-          },
-          style: "destructive",
-        },
-      ]
-    );
-  };
-
-  const deleteCard = () => {
-    if (cards.length <= 1) {
-      Alert.alert(
-        "Cannot Delete",
-        "You cannot delete the last card in a deck. You can delete the entire deck instead."
-      );
-      return;
-    }
-
-    Alert.alert("Delete Card", "Are you sure you want to delete this card?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Delete",
-        onPress: () => {
-          // Create a new array of cards without the current card
-          const updatedCards = cards.filter(
-            (_, index) => index !== currentCardIndex
-          );
-
-          // Create a new deck with the updated cards
-          const updatedDeck = {
-            ...deck,
-            cards: updatedCards,
-          };
-
-          // Update the decks array
-          const deckIndex = decks.findIndex((d) => d.id === deckId);
-          const updatedDecks = [...decks];
-          updatedDecks[deckIndex] = updatedDeck;
-
-          // Update state and storage
-          updateDecks(updatedDecks);
-
-          // Adjust current index if needed
-          if (currentCardIndex >= updatedCards.length) {
-            setCurrentCardIndex(updatedCards.length - 1);
-          }
-
-          setShowOptions(false);
-        },
-        style: "destructive",
-      },
-    ]);
-  };
+  // Calculate correct and incorrect counts from cardStatuses
+  const correctCount = Object.values(cardStatuses).filter(
+    (status) => status === "correct"
+  ).length;
+  const incorrectCount = Object.values(cardStatuses).filter(
+    (status) => status === "incorrect"
+  ).length;
 
   // Handle empty deck case
   if (cards.length === 0) {
@@ -281,7 +222,11 @@ function FlashcardScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={[styles.button, styles.deleteButton]}
-            onPress={deleteDeck}
+            onPress={() => {
+              const updatedDecks = decks.filter((d) => d.id !== deckId);
+              updateDecks(updatedDecks);
+              navigation.goBack();
+            }}
           >
             <Text style={styles.buttonText}>Delete Deck</Text>
           </TouchableOpacity>
@@ -290,7 +235,60 @@ function FlashcardScreen({ route, navigation }) {
     );
   }
 
-  const currentCard = cards[currentCardIndex];
+  // Handle when all cards have been reviewed
+  if (studyMode && cardsToReview.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.headerWithBack}>
+          <TouchableOpacity
+            style={styles.backArrow}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerText}>{deck.title}</Text>
+          </View>
+        </View>
+
+        <View style={styles.completionContainer}>
+          <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+          <Text style={styles.completionText}>Study Complete!</Text>
+          <Text style={styles.completionSubtext}>
+            You've gone through all the cards in this deck.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.button, styles.resetButton]}
+            onPress={() => {
+              // Reset study session with all cards
+              setCardsToReview([...cards]);
+              setCurrentCardIndex(0);
+              setIsFlipped(false);
+            }}
+          >
+            <Text style={styles.buttonText}>Study Again</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.backButton]}
+            onPress={() => {
+              setStudyMode(false);
+              setCardsToReview([]);
+              setCurrentCardIndex(0);
+              setIsFlipped(false);
+            }}
+          >
+            <Text style={styles.buttonText}>Exit Study Mode</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const currentCard = studyMode
+    ? cardsToReview[currentCardIndex]
+    : cards[currentCardIndex];
 
   const flipCard = () => {
     setIsFlipped(!isFlipped);
@@ -299,15 +297,105 @@ function FlashcardScreen({ route, navigation }) {
   const nextCard = () => {
     setIsFlipped(false);
     setCurrentCardIndex((prevIndex) =>
-      prevIndex === cards.length - 1 ? 0 : prevIndex + 1
+      prevIndex === (studyMode ? cardsToReview.length : cards.length) - 1
+        ? 0
+        : prevIndex + 1
     );
   };
 
   const prevCard = () => {
     setIsFlipped(false);
     setCurrentCardIndex((prevIndex) =>
-      prevIndex === 0 ? cards.length - 1 : prevIndex - 1
+      prevIndex === 0
+        ? (studyMode ? cardsToReview.length : cards.length) - 1
+        : prevIndex - 1
     );
+  };
+
+  const handleGotIt = () => {
+    if (!isFlipped) {
+      Alert.alert(
+        "Flip First",
+        "Please flip the card to see the answer before marking it."
+      );
+      return;
+    }
+
+    // Update card status to correct
+    setCardStatuses({
+      ...cardStatuses,
+      [currentCard.id]: "correct",
+    });
+
+    // In study mode, remove the card from cards to review
+    if (studyMode) {
+      const updatedCardsToReview = [...cardsToReview];
+      updatedCardsToReview.splice(currentCardIndex, 1);
+      setCardsToReview(updatedCardsToReview);
+
+      // Adjust current index if needed
+      if (currentCardIndex >= updatedCardsToReview.length) {
+        setCurrentCardIndex(Math.max(0, updatedCardsToReview.length - 1));
+      }
+
+      setIsFlipped(false);
+    } else {
+      // In regular mode, just go to next card
+      nextCard();
+    }
+  };
+
+  const handleDidntGetIt = () => {
+    if (!isFlipped) {
+      Alert.alert(
+        "Flip First",
+        "Please flip the card to see the answer before marking it."
+      );
+      return;
+    }
+
+    // Update card status to incorrect
+    setCardStatuses({
+      ...cardStatuses,
+      [currentCard.id]: "incorrect",
+    });
+
+    if (studyMode) {
+      // Move current card to the end of the review list
+      const updatedCardsToReview = [...cardsToReview];
+      const currentCardToMove = updatedCardsToReview.splice(
+        currentCardIndex,
+        1
+      )[0];
+      updatedCardsToReview.push(currentCardToMove);
+      setCardsToReview(updatedCardsToReview);
+
+      // Go to next card (which is now at the current index after removing the current card)
+      setIsFlipped(false);
+
+      // If we're at the end, go back to the beginning
+      if (currentCardIndex >= updatedCardsToReview.length) {
+        setCurrentCardIndex(0);
+      }
+    } else {
+      // In regular mode, just go to next card
+      nextCard();
+    }
+  };
+
+  // Reset study stats when starting study mode
+  const startStudyMode = () => {
+    setStudyMode(true);
+    setCardsToReview([...cards]);
+    setCurrentCardIndex(0);
+    setIsFlipped(false);
+
+    // Initialize all cards as incorrect at the start of study mode
+    const initialStatuses = {};
+    cards.forEach((card) => {
+      initialStatuses[card.id] = "incorrect";
+    });
+    setCardStatuses(initialStatuses);
   };
 
   return (
@@ -321,7 +409,9 @@ function FlashcardScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerText}>{deck.title}</Text>
-          <Text style={styles.subHeaderText}>{deck.language}</Text>
+          <Text style={styles.subHeaderText}>
+            {studyMode ? "Study Mode" : deck.language}
+          </Text>
         </View>
       </View>
 
@@ -332,18 +422,47 @@ function FlashcardScreen({ route, navigation }) {
         <Text style={styles.flipHint}>Tap to flip</Text>
       </TouchableOpacity>
 
-      <View style={styles.controls}>
-        <TouchableOpacity style={styles.button} onPress={prevCard}>
-          <Text style={styles.buttonText}>Previous</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={nextCard}>
-          <Text style={styles.buttonText}>Next</Text>
-        </TouchableOpacity>
-      </View>
+      {studyMode ? (
+        <View style={styles.studyControls}>
+          <TouchableOpacity
+            style={[styles.button, styles.incorrectButton]}
+            onPress={handleDidntGetIt}
+          >
+            <Text style={styles.buttonText}>Didn't Get It</Text>
+          </TouchableOpacity>
 
-      <Text style={styles.counter}>
-        Card {currentCardIndex + 1} of {cards.length}
-      </Text>
+          <TouchableOpacity
+            style={[styles.button, styles.correctButton]}
+            onPress={handleGotIt}
+          >
+            <Text style={styles.buttonText}>Got It!</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.controls}>
+          <TouchableOpacity style={styles.button} onPress={prevCard}>
+            <Text style={styles.buttonText}>Previous</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={nextCard}>
+            <Text style={styles.buttonText}>Next</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {studyMode ? (
+        <View style={styles.studyStats}>
+          <Text style={styles.studyCounter}>
+            <Text style={styles.correctStat}>{correctCount}✅</Text>{" "}
+            <Text style={styles.incorrectStat}>{incorrectCount}❌</Text>
+            {" • "}
+            {cardsToReview.length} cards left
+          </Text>
+        </View>
+      ) : (
+        <Text style={styles.counter}>
+          Card {currentCardIndex + 1} of {cards.length}
+        </Text>
+      )}
 
       {showOptions ? (
         <View style={styles.optionsContainer}>
@@ -359,14 +478,11 @@ function FlashcardScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={[styles.button, styles.deleteButton]}
-            onPress={deleteCard}
-          >
-            <Text style={styles.buttonText}>Delete Current Card</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.deleteButton]}
-            onPress={deleteDeck}
+            onPress={() => {
+              const updatedDecks = decks.filter((d) => d.id !== deckId);
+              updateDecks(updatedDecks);
+              navigation.goBack();
+            }}
           >
             <Text style={styles.buttonText}>Delete Deck</Text>
           </TouchableOpacity>
@@ -380,6 +496,35 @@ function FlashcardScreen({ route, navigation }) {
         </View>
       ) : (
         <View style={styles.stackedButtons}>
+          {!studyMode ? (
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.studyButton,
+                styles.fullWidthButton,
+              ]}
+              onPress={startStudyMode}
+            >
+              <Text style={styles.buttonText}>Start Studying</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.cancelButton,
+                styles.fullWidthButton,
+              ]}
+              onPress={() => {
+                setStudyMode(false);
+                setCardsToReview([]);
+                setCurrentCardIndex(0);
+                setIsFlipped(false);
+              }}
+            >
+              <Text style={styles.buttonText}>Exit Study Mode</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[
               styles.button,
@@ -758,5 +903,67 @@ const styles = StyleSheet.create({
   emptyDeckButtons: {
     width: "100%",
     marginTop: 20,
+  },
+  studyControls: {
+    flexDirection: "row",
+    marginTop: 30,
+    width: "100%",
+    justifyContent: "space-between",
+  },
+  correctButton: {
+    backgroundColor: "#4CAF50",
+    flex: 1,
+    marginHorizontal: 5,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  incorrectButton: {
+    backgroundColor: "#F44336",
+    flex: 1,
+    marginHorizontal: 5,
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  studyStats: {
+    marginTop: 20,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "#f0f0f0",
+    width: "100%",
+    alignItems: "center",
+  },
+  studyCounter: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "500",
+  },
+  correctStat: {
+    color: "#4CAF50",
+    fontWeight: "bold",
+  },
+  incorrectStat: {
+    color: "#F44336",
+    fontWeight: "bold",
+  },
+  completionContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  completionText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 20,
+  },
+  completionSubtext: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 10,
+    marginBottom: 30,
+    textAlign: "center",
+  },
+  resetButton: {
+    backgroundColor: "#2196F3",
   },
 });
