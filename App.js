@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -15,6 +15,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -785,26 +786,53 @@ function AddCardScreen({ route, navigation }) {
       </View>
 
       <View style={styles.formContainer}>
-        <Text style={styles.label}>Front (Question/Word)</Text>
+        <Text
+          style={[
+            styles.inputLabel,
+            { color: "#fff", marginBottom: 5, fontSize: 16 },
+          ]}
+        >
+          Front (English)
+        </Text>
         <TextInput
-          style={styles.input}
-          placeholder="Enter the word or phrase"
+          style={[
+            styles.input,
+            { color: "#fff", height: 100, textAlignVertical: "top" },
+          ]}
           value={front}
           onChangeText={setFront}
-          multiline
+          placeholder="Enter front text (English)"
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={4}
         />
 
-        <Text style={styles.label}>Back (Answer/Translation)</Text>
+        <Text
+          style={[
+            styles.inputLabel,
+            { color: "#fff", marginBottom: 5, marginTop: 15, fontSize: 16 },
+          ]}
+        >
+          Back ({deck.language})
+        </Text>
         <TextInput
-          style={styles.input}
-          placeholder="Enter the translation"
+          style={[
+            styles.input,
+            { color: "#fff", height: 100, textAlignVertical: "top" },
+          ]}
           value={back}
           onChangeText={setBack}
-          multiline
+          placeholder={`Enter back text (${deck.language})`}
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={4}
         />
 
-        <TouchableOpacity style={styles.button} onPress={addCard}>
-          <Text style={styles.buttonText}>Add Card</Text>
+        <TouchableOpacity
+          style={[styles.addButton, { marginTop: 20 }]}
+          onPress={addCard}
+        >
+          <Text style={styles.addButtonText}>Add Card</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -1088,6 +1116,33 @@ function LanguageDecksScreen({ route, navigation }) {
               <Text style={styles.deckTitle}>{item.title}</Text>
               <Text style={styles.deckSubtitle}>{item.cards.length} cards</Text>
             </View>
+            <TouchableOpacity
+              style={styles.deckDeleteButton}
+              onPress={() => {
+                Alert.alert(
+                  "Delete Deck",
+                  `Are you sure you want to delete "${item.title}"?`,
+                  [
+                    {
+                      text: "Cancel",
+                      style: "cancel",
+                    },
+                    {
+                      text: "Delete",
+                      style: "destructive",
+                      onPress: () => {
+                        const updatedDecks = decks.filter(
+                          (d) => d.id !== item.id
+                        );
+                        updateDecks(updatedDecks);
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
       />
@@ -1244,6 +1299,7 @@ const styles = StyleSheet.create({
   deckItemContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     backgroundColor: "#2a2a2a",
     padding: 20,
     borderRadius: 10,
@@ -1256,8 +1312,11 @@ const styles = StyleSheet.create({
   },
   deckItem: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
   },
   deckContent: {
+    flex: 1,
     flexDirection: "column",
   },
   deckTitle: {
@@ -1271,8 +1330,11 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   deckDeleteButton: {
-    padding: 10,
-    marginLeft: 10,
+    padding: 8,
+    marginLeft: 15,
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    borderRadius: 8,
+    alignSelf: "center",
   },
   addButton: {
     backgroundColor: "#4CAF50",
@@ -1488,6 +1550,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#333",
     color: "#fff",
+    textAlignVertical: "top",
+    minHeight: 100,
   },
   modalButtons: {
     flexDirection: "row",
@@ -1564,5 +1628,23 @@ const styles = StyleSheet.create({
   headerDeleteButton: {
     padding: 10,
     marginRight: -5,
+  },
+  autoTranslateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 15,
+    paddingHorizontal: 10,
+  },
+  autoTranslateText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  translatingText: {
+    color: "#666",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginVertical: 5,
   },
 });
