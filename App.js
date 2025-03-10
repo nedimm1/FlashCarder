@@ -758,10 +758,12 @@ function AddCardScreen({ route, navigation }) {
       // Update the global state
       updateDecks(updatedDecks);
 
-      // Reset form and navigate back
+      // Reset form fields only
       setFront("");
       setBack("");
-      navigation.goBack();
+
+      // Show success message
+      Alert.alert("Success", "Card added successfully!");
     } else {
       Alert.alert("Error", "Please fill in both sides of the card");
     }
@@ -904,7 +906,7 @@ function LanguageScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>Language Sections</Text>
+        <Text style={styles.headerText}>Flashcarder</Text>
       </View>
       <Text style={styles.subHeaderText}>Select a Language</Text>
 
@@ -1221,7 +1223,7 @@ const styles = StyleSheet.create({
   },
   // Home screen header
   header: {
-    marginBottom: 40,
+    marginBottom: 20,
     alignItems: "center",
   },
   headerText: {
