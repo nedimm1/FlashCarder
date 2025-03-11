@@ -262,21 +262,10 @@ function FlashcardScreen({ route, navigation }) {
 
         <View style={styles.emptyDeckButtons}>
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, styles.studyButton]}
             onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
           >
             <Text style={styles.buttonText}>Add Cards</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.deleteButton]}
-            onPress={() => {
-              const updatedDecks = decks.filter((d) => d.id !== deckId);
-              updateDecks(updatedDecks);
-              navigation.goBack();
-            }}
-          >
-            <Text style={styles.buttonText}>Delete Deck</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -585,10 +574,27 @@ function FlashcardScreen({ route, navigation }) {
                   <Text style={styles.cardText}>
                     {isFlipped ? currentCard.back : currentCard.front}
                   </Text>
+                  {isFlipped && currentCard.example && (
+                    <Text style={styles.exampleText}>
+                      Example: {currentCard.example}
+                    </Text>
+                  )}
                   <Text style={styles.flipHint}>Tap to flip</Text>
 
                   <TouchableOpacity
-                    style={styles.deleteCardIcon}
+                    style={styles.editButton}
+                    onPress={() =>
+                      navigation.navigate("EditCard", {
+                        deckId: deck.id,
+                        cardIndex: currentCardIndex,
+                      })
+                    }
+                  >
+                    <Ionicons name="pencil" size={24} color="#2196F3" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
                     onPress={deleteCurrentCard}
                   >
                     <Ionicons name="trash-outline" size={24} color="#FF3B30" />
@@ -680,10 +686,27 @@ function FlashcardScreen({ route, navigation }) {
                   <Text style={styles.cardText}>
                     {isFlipped ? currentCard.back : currentCard.front}
                   </Text>
+                  {isFlipped && currentCard.example && (
+                    <Text style={styles.exampleText}>
+                      Example: {currentCard.example}
+                    </Text>
+                  )}
                   <Text style={styles.flipHint}>Tap to flip</Text>
 
                   <TouchableOpacity
-                    style={styles.deleteCardIcon}
+                    style={styles.editButton}
+                    onPress={() =>
+                      navigation.navigate("EditCard", {
+                        deckId: deck.id,
+                        cardIndex: currentCardIndex,
+                      })
+                    }
+                  >
+                    <Ionicons name="pencil" size={24} color="#2196F3" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
                     onPress={deleteCurrentCard}
                   >
                     <Ionicons name="trash-outline" size={24} color="#FF3B30" />
@@ -732,6 +755,7 @@ function AddCardScreen({ route, navigation }) {
   const { decks, updateDecks } = React.useContext(DataContext);
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
+  const [example, setExample] = useState("");
 
   // Find the current deck
   const deckIndex = decks.findIndex((d) => d.id === deckId);
@@ -743,6 +767,7 @@ function AddCardScreen({ route, navigation }) {
         id: Date.now().toString(),
         front: front,
         back: back,
+        example: example.trim() || null, // Store example if provided, null if empty
         language: deck.language,
       };
 
@@ -762,6 +787,7 @@ function AddCardScreen({ route, navigation }) {
       // Reset form fields only
       setFront("");
       setBack("");
+      setExample("");
 
       // Show success message
       Alert.alert("Success", "Card added successfully!");
@@ -828,11 +854,165 @@ function AddCardScreen({ route, navigation }) {
           numberOfLines={4}
         />
 
+        <Text
+          style={[
+            styles.inputLabel,
+            { color: "#fff", marginBottom: 5, marginTop: 15, fontSize: 16 },
+          ]}
+        >
+          Example (Optional)
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            { color: "#fff", height: 100, textAlignVertical: "top" },
+          ]}
+          value={example}
+          onChangeText={setExample}
+          placeholder="Enter an example sentence (optional)"
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={4}
+        />
+
         <TouchableOpacity
           style={[styles.addButton, { marginTop: 20 }]}
           onPress={addCard}
         >
           <Text style={styles.addButtonText}>Add Card</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// Edit Card Screen
+function EditCardScreen({ route, navigation }) {
+  const { deckId, cardIndex } = route.params;
+  const { decks, updateDecks } = React.useContext(DataContext);
+
+  // Find the current deck and card
+  const deck = decks.find((d) => d.id === deckId);
+  const card = deck.cards[cardIndex];
+
+  const [front, setFront] = useState(card.front);
+  const [back, setBack] = useState(card.back);
+  const [example, setExample] = useState(card.example || "");
+
+  const saveChanges = () => {
+    if (front.trim() && back.trim()) {
+      // Create a copy of the current deck
+      const updatedDeck = { ...deck };
+
+      // Update the card
+      updatedDeck.cards[cardIndex] = {
+        ...card,
+        front: front.trim(),
+        back: back.trim(),
+        example: example.trim() || null,
+      };
+
+      // Update the decks array
+      const updatedDecks = decks.map((d) =>
+        d.id === deckId ? updatedDeck : d
+      );
+
+      // Update the global state
+      updateDecks(updatedDecks);
+
+      // Show success message and navigate back
+      Alert.alert("Success", "Card updated successfully!", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
+    } else {
+      Alert.alert("Error", "Please fill in both sides of the card");
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.headerWithBack}>
+        <TouchableOpacity
+          style={styles.backArrow}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerText}>Edit Card</Text>
+          <Text style={styles.subHeaderText}>in {deck.title}</Text>
+        </View>
+      </View>
+
+      <View style={styles.formContainer}>
+        <Text
+          style={[
+            styles.inputLabel,
+            { color: "#fff", marginBottom: 5, fontSize: 16 },
+          ]}
+        >
+          Front (English)
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            { color: "#fff", height: 100, textAlignVertical: "top" },
+          ]}
+          value={front}
+          onChangeText={setFront}
+          placeholder="Enter front text (English)"
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={4}
+        />
+
+        <Text
+          style={[
+            styles.inputLabel,
+            { color: "#fff", marginBottom: 5, marginTop: 15, fontSize: 16 },
+          ]}
+        >
+          Back ({deck.language})
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            { color: "#fff", height: 100, textAlignVertical: "top" },
+          ]}
+          value={back}
+          onChangeText={setBack}
+          placeholder={`Enter back text (${deck.language})`}
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={4}
+        />
+
+        <Text
+          style={[
+            styles.inputLabel,
+            { color: "#fff", marginBottom: 5, marginTop: 15, fontSize: 16 },
+          ]}
+        >
+          Example (Optional)
+        </Text>
+        <TextInput
+          style={[
+            styles.input,
+            { color: "#fff", height: 100, textAlignVertical: "top" },
+          ]}
+          value={example}
+          onChangeText={setExample}
+          placeholder="Enter an example sentence (optional)"
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={4}
+        />
+
+        <TouchableOpacity
+          style={[styles.addButton, { marginTop: 20 }]}
+          onPress={saveChanges}
+        >
+          <Text style={styles.addButtonText}>Save Changes</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -1262,6 +1442,11 @@ export default function App() {
               component={AddCardScreen}
               options={{ headerShown: false }}
             />
+            <Stack.Screen
+              name="EditCard"
+              component={EditCardScreen}
+              options={{ headerShown: false }}
+            />
           </Stack.Navigator>
         </NavigationContainer>
       </DataContext.Provider>
@@ -1443,7 +1628,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     backgroundColor: "#444",
-    marginTop: 10,
   },
   cancelButton: {
     backgroundColor: "#444",
@@ -1646,5 +1830,47 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     marginVertical: 5,
+  },
+  editButton: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(42, 42, 42, 0.9)",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 10,
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(42, 42, 42, 0.9)",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    zIndex: 10,
+  },
+  exampleText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 20,
+    fontStyle: "italic",
+    paddingHorizontal: 20,
   },
 });
