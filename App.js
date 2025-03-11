@@ -758,7 +758,7 @@ function AddCardScreen({ route, navigation }) {
   const [example, setExample] = useState("");
   const [autoTranslate, setAutoTranslate] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [translationDirection, setTranslationDirection] = useState(null); // 'toTarget' or 'toEnglish'
+  const [translationDirection, setTranslationDirection] = useState(null);
 
   // Find the current deck
   const deckIndex = decks.findIndex((d) => d.id === deckId);
@@ -880,19 +880,21 @@ function AddCardScreen({ route, navigation }) {
         </View>
       </View>
 
-      <View style={styles.autoTranslateContainer}>
-        <Text style={[styles.inputLabel, { color: "#fff", marginBottom: 0 }]}>
-          Auto-translate
-        </Text>
-        <Switch
-          value={autoTranslate}
-          onValueChange={(value) => {
-            setAutoTranslate(value);
-            setTranslationDirection(null);
-          }}
-          trackColor={{ false: "#444", true: "#4CAF50" }}
-          thumbColor={autoTranslate ? "#fff" : "#f4f3f4"}
-        />
+      <View style={styles.autoFeaturesContainer}>
+        <View style={styles.autoFeatureRow}>
+          <Text style={[styles.inputLabel, { color: "#fff", marginBottom: 0 }]}>
+            Auto-translate
+          </Text>
+          <Switch
+            value={autoTranslate}
+            onValueChange={(value) => {
+              setAutoTranslate(value);
+              setTranslationDirection(null);
+            }}
+            trackColor={{ false: "#444", true: "#4CAF50" }}
+            thumbColor={autoTranslate ? "#fff" : "#f4f3f4"}
+          />
+        </View>
       </View>
 
       <View style={styles.formContainer}>
@@ -1910,14 +1912,22 @@ const styles = StyleSheet.create({
     padding: 10,
     marginRight: -5,
   },
-  autoTranslateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  autoFeaturesContainer: {
     backgroundColor: "#2a2a2a",
     padding: 15,
     borderRadius: 10,
     marginBottom: 20,
+  },
+  autoFeatureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  fetchingText: {
+    color: "#999",
+    fontStyle: "italic",
+    fontSize: 14,
   },
   autoTranslateText: {
     fontSize: 16,
