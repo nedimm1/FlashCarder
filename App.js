@@ -756,10 +756,78 @@ function AddCardScreen({ route, navigation }) {
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [example, setExample] = useState("");
+  const [autoTranslate, setAutoTranslate] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationDirection, setTranslationDirection] = useState(null); // 'toTarget' or 'toEnglish'
 
   // Find the current deck
   const deckIndex = decks.findIndex((d) => d.id === deckId);
   const deck = decks[deckIndex];
+
+  // Debounce the translation to avoid too many API calls
+  useEffect(() => {
+    if (!autoTranslate || (!front.trim() && !back.trim())) {
+      return;
+    }
+
+    const translateText = async () => {
+      try {
+        setIsTranslating(true);
+        const langCode = deck.language.toLowerCase().slice(0, 2);
+
+        // Determine which field was last edited and translate accordingly
+        if (translationDirection === "toTarget" && front.trim()) {
+          // Translate from English to target language
+          const response = await fetch(
+            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+              front.trim()
+            )}&langpair=en|${langCode}`
+          );
+
+          const data = await response.json();
+          if (data.responseStatus === 200 && data.responseData.translatedText) {
+            setBack(data.responseData.translatedText);
+          } else {
+            Alert.alert(
+              "Translation Error",
+              "Could not translate text. Please try again or enter text manually."
+            );
+            console.error("Translation error:", data);
+          }
+        } else if (translationDirection === "toEnglish" && back.trim()) {
+          // Translate from target language to English
+          const response = await fetch(
+            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+              back.trim()
+            )}&langpair=${langCode}|en`
+          );
+
+          const data = await response.json();
+          if (data.responseStatus === 200 && data.responseData.translatedText) {
+            setFront(data.responseData.translatedText);
+          } else {
+            Alert.alert(
+              "Translation Error",
+              "Could not translate text. Please try again or enter text manually."
+            );
+            console.error("Translation error:", data);
+          }
+        }
+      } catch (error) {
+        Alert.alert(
+          "Translation Error",
+          "Failed to connect to translation service. Please try again or enter text manually."
+        );
+        console.error("Translation error:", error);
+      } finally {
+        setIsTranslating(false);
+      }
+    };
+
+    // Debounce the translation request
+    const timeoutId = setTimeout(translateText, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [front, back, autoTranslate, deck.language, translationDirection]);
 
   const addCard = () => {
     if (front.trim() && back.trim()) {
@@ -767,7 +835,7 @@ function AddCardScreen({ route, navigation }) {
         id: Date.now().toString(),
         front: front,
         back: back,
-        example: example.trim() || null, // Store example if provided, null if empty
+        example: example.trim() || null,
         language: deck.language,
       };
 
@@ -788,6 +856,7 @@ function AddCardScreen({ route, navigation }) {
       setFront("");
       setBack("");
       setExample("");
+      setTranslationDirection(null);
 
       // Show success message
       Alert.alert("Success", "Card added successfully!");
@@ -811,6 +880,21 @@ function AddCardScreen({ route, navigation }) {
         </View>
       </View>
 
+      <View style={styles.autoTranslateContainer}>
+        <Text style={[styles.inputLabel, { color: "#fff", marginBottom: 0 }]}>
+          Auto-translate
+        </Text>
+        <Switch
+          value={autoTranslate}
+          onValueChange={(value) => {
+            setAutoTranslate(value);
+            setTranslationDirection(null);
+          }}
+          trackColor={{ false: "#444", true: "#4CAF50" }}
+          thumbColor={autoTranslate ? "#fff" : "#f4f3f4"}
+        />
+      </View>
+
       <View style={styles.formContainer}>
         <Text
           style={[
@@ -826,7 +910,12 @@ function AddCardScreen({ route, navigation }) {
             { color: "#fff", height: 100, textAlignVertical: "top" },
           ]}
           value={front}
-          onChangeText={setFront}
+          onChangeText={(text) => {
+            setFront(text);
+            if (autoTranslate && text.trim()) {
+              setTranslationDirection("toTarget");
+            }
+          }}
           placeholder="Enter front text (English)"
           placeholderTextColor="#666"
           multiline={true}
@@ -841,13 +930,21 @@ function AddCardScreen({ route, navigation }) {
         >
           Back ({deck.language})
         </Text>
+        {isTranslating && (
+          <Text style={styles.translatingText}>Translating...</Text>
+        )}
         <TextInput
           style={[
             styles.input,
             { color: "#fff", height: 100, textAlignVertical: "top" },
           ]}
           value={back}
-          onChangeText={setBack}
+          onChangeText={(text) => {
+            setBack(text);
+            if (autoTranslate && text.trim()) {
+              setTranslationDirection("toEnglish");
+            }
+          }}
           placeholder={`Enter back text (${deck.language})`}
           placeholderTextColor="#666"
           multiline={true}
@@ -1817,8 +1914,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 15,
-    paddingHorizontal: 10,
+    backgroundColor: "#2a2a2a",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
   },
   autoTranslateText: {
     fontSize: 16,
@@ -1826,10 +1925,10 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   translatingText: {
-    color: "#666",
+    color: "#999",
     fontStyle: "italic",
-    textAlign: "center",
-    marginVertical: 5,
+    marginBottom: 5,
+    fontSize: 14,
   },
   editButton: {
     position: "absolute",
