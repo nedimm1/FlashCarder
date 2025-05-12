@@ -321,9 +321,7 @@ function FlashcardScreen({ route, navigation }) {
         </TouchableOpacity>
         <View style={flashcardStyles.headerTextContainer}>
           <Text style={flashcardStyles.headerTitle}>{deck.title}</Text>
-          <Text style={flashcardStyles.headerSubtitle}>
-            {studyMode ? "Study Mode" : deck.language}
-          </Text>
+          <Text style={flashcardStyles.headerSubtitle}>{deck.displayName}</Text>
           {studyMode && (
             <Text style={flashcardStyles.studyStats}>
               {correctCount}✅ {incorrectCount}❌ • {cardsToReview.length} cards
@@ -398,12 +396,19 @@ function FlashcardScreen({ route, navigation }) {
               <View style={flashcardStyles.cardActions}>
                 <TouchableOpacity
                   style={flashcardStyles.editButton}
-                  onPress={() =>
+                  onPress={() => {
+                    // If in study mode, find the actual index of the card in the original deck
+                    const currentCard = studyMode
+                      ? cardsToReview[currentCardIndex]
+                      : cards[currentCardIndex];
+                    const actualCardIndex = cards.findIndex(
+                      (card) => card.id === currentCard.id
+                    );
                     navigation.navigate("EditCard", {
                       deckId: deck.id,
-                      cardIndex: currentCardIndex,
-                    })
-                  }
+                      cardIndex: actualCardIndex,
+                    });
+                  }}
                 >
                   <Ionicons name="pencil" size={24} color="#2196F3" />
                 </TouchableOpacity>
@@ -423,6 +428,11 @@ function FlashcardScreen({ route, navigation }) {
                 <Text style={flashcardStyles.cardText}>
                   {isFlipped ? currentCard.back : currentCard.front}
                 </Text>
+                {!isFlipped && currentCard.pronunciation && (
+                  <Text style={flashcardStyles.pronunciationText}>
+                    [{currentCard.pronunciation}]
+                  </Text>
+                )}
                 {isFlipped && currentCard.example && (
                   <Text style={flashcardStyles.exampleText}>
                     Example: {currentCard.example}
@@ -522,8 +532,8 @@ const flashcardStyles = StyleSheet.create({
     textAlign: "center",
   },
   headerSubtitle: {
-    fontSize: 18,
-    color: "#999",
+    fontSize: 16,
+    color: "#666",
     marginTop: 5,
   },
   addButton: {
@@ -645,6 +655,13 @@ const flashcardStyles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
     textAlign: "center",
+  },
+  pronunciationText: {
+    fontSize: 20,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 10,
+    fontStyle: "italic",
   },
 });
 

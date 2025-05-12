@@ -103,10 +103,10 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
   editButton: {
-    position: "absolute",
-    top: 20,
-    left: 20,
-    padding: 10,
+    padding: 8,
+    marginLeft: 8,
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderRadius: 8,
   },
   deleteButton: {
     position: "absolute",
@@ -374,5 +374,10 @@ export const styles = StyleSheet.create({
     color: "#4CAF50",
     marginLeft: 10,
     fontSize: 14,
+  },
+  headerTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

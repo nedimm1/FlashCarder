@@ -17,18 +17,18 @@ import { DataContext } from "../context/DataContext";
 import { saveData } from "../utils/storage";
 
 function LanguageDecksScreen({ route, navigation }) {
-  const { language } = route.params;
+  const { language, displayName } = route.params;
   const { decks, updateDecks } = React.useContext(DataContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [newDeckTitle, setNewDeckTitle] = useState("");
 
-  // Filter decks by language
+  // Filter decks by language code
   const languageDecks = decks.filter((deck) => deck.language === language);
 
   const handleDeleteLanguage = () => {
     Alert.alert(
       "Delete Language",
-      `Are you sure you want to delete "${language}"? This will also delete all decks in this language.`,
+      `Are you sure you want to delete "${displayName}"? This will also delete all decks in this language.`,
       [
         {
           text: "Cancel",
@@ -53,7 +53,7 @@ function LanguageDecksScreen({ route, navigation }) {
               if (stored) {
                 const languages = JSON.parse(stored);
                 const updatedLanguages = languages.filter(
-                  (lang) => lang !== language
+                  (lang) => lang.code !== language
                 );
                 await AsyncStorage.setItem(
                   "languages",
@@ -88,7 +88,19 @@ function LanguageDecksScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerText}>{language}</Text>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerText}>{displayName}</Text>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => {
+                navigation.navigate("Languages", {
+                  editLanguage: { code: language, displayName },
+                });
+              }}
+            >
+              <Ionicons name="pencil" size={20} color="#4CAF50" />
+            </TouchableOpacity>
+          </View>
           <Text style={styles.subHeaderText}>Select a Deck</Text>
         </View>
       </View>
@@ -181,6 +193,7 @@ function LanguageDecksScreen({ route, navigation }) {
                       id: Date.now().toString(),
                       title: newDeckTitle,
                       language: language,
+                      displayName: displayName,
                       cards: [],
                     };
                     const updatedDecks = [...decks, newDeck];

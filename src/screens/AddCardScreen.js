@@ -24,6 +24,7 @@ function AddCardScreen({ route, navigation }) {
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [example, setExample] = useState("");
+  const [pronunciation, setPronunciation] = useState("");
   const [autoTranslate, setAutoTranslate] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationDirection, setTranslationDirection] = useState(null);
@@ -44,13 +45,9 @@ function AddCardScreen({ route, navigation }) {
         const textToTranslate =
           translationDirection === "toEnglish" ? front : back;
         const sourceLang =
-          translationDirection === "toEnglish"
-            ? getLanguageCode(deck.language)
-            : "en";
+          translationDirection === "toEnglish" ? deck.language : "en";
         const targetLang =
-          translationDirection === "toEnglish"
-            ? "en"
-            : getLanguageCode(deck.language);
+          translationDirection === "toEnglish" ? "en" : deck.language;
 
         if (textToTranslate.trim()) {
           const translatedText = await translateText(
@@ -94,7 +91,9 @@ function AddCardScreen({ route, navigation }) {
         front: front,
         back: back,
         example: example.trim() || null,
+        pronunciation: pronunciation.trim() || null,
         language: deck.language,
+        displayName: deck.displayName,
       };
 
       const updatedDeck = {
@@ -110,6 +109,7 @@ function AddCardScreen({ route, navigation }) {
       setFront("");
       setBack("");
       setExample("");
+      setPronunciation("");
       setTranslationDirection(null);
 
       Alert.alert("Success", "Card added successfully!");
@@ -160,7 +160,9 @@ function AddCardScreen({ route, navigation }) {
             </View>
 
             <View style={addCardStyles.inputContainer}>
-              <Text style={addCardStyles.label}>Front ({deck.language})</Text>
+              <Text style={addCardStyles.label}>
+                Front ({deck.displayName})
+              </Text>
               <TextInput
                 style={addCardStyles.input}
                 value={front}
@@ -170,7 +172,7 @@ function AddCardScreen({ route, navigation }) {
                     setTranslationDirection("toEnglish");
                   }
                 }}
-                placeholder={`${deck.language} word or phrase`}
+                placeholder={`${deck.displayName} word or phrase`}
                 placeholderTextColor="#666"
                 multiline={true}
                 numberOfLines={4}
@@ -200,6 +202,19 @@ function AddCardScreen({ route, navigation }) {
                 placeholderTextColor="#666"
                 multiline={true}
                 numberOfLines={4}
+              />
+
+              <Text style={[addCardStyles.label, { marginTop: 15 }]}>
+                Pronunciation (Optional)
+              </Text>
+              <TextInput
+                style={addCardStyles.input}
+                value={pronunciation}
+                onChangeText={setPronunciation}
+                placeholder="Enter pronunciation"
+                placeholderTextColor="#666"
+                multiline={true}
+                numberOfLines={2}
               />
 
               <Text style={[addCardStyles.label, { marginTop: 15 }]}>

@@ -23,6 +23,7 @@ function EditCardScreen({ route, navigation }) {
   const [front, setFront] = useState(card.front);
   const [back, setBack] = useState(card.back);
   const [example, setExample] = useState(card.example || "");
+  const [pronunciation, setPronunciation] = useState(card.pronunciation || "");
 
   const saveChanges = () => {
     if (front.trim() && back.trim()) {
@@ -35,6 +36,7 @@ function EditCardScreen({ route, navigation }) {
         front: front.trim(),
         back: back.trim(),
         example: example.trim() || null,
+        pronunciation: pronunciation.trim() || null,
       };
 
       // Update the decks array
@@ -76,7 +78,7 @@ function EditCardScreen({ route, navigation }) {
             { color: "#fff", marginBottom: 5, fontSize: 16 },
           ]}
         >
-          Front ({deck.language})
+          Front ({deck.displayName})
         </Text>
         <TextInput
           style={[
@@ -85,7 +87,7 @@ function EditCardScreen({ route, navigation }) {
           ]}
           value={front}
           onChangeText={setFront}
-          placeholder={`Enter front text (${deck.language})`}
+          placeholder={`Enter front text (${deck.displayName})`}
           placeholderTextColor="#666"
           multiline={true}
           numberOfLines={4}
@@ -110,6 +112,19 @@ function EditCardScreen({ route, navigation }) {
           placeholderTextColor="#666"
           multiline={true}
           numberOfLines={4}
+        />
+
+        <Text style={[styles.inputLabel, { marginTop: 15 }]}>
+          Pronunciation (Optional)
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={pronunciation}
+          onChangeText={setPronunciation}
+          placeholder="Enter pronunciation"
+          placeholderTextColor="#666"
+          multiline={true}
+          numberOfLines={2}
         />
 
         <Text
