@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -15,8 +15,11 @@ import {
   PanGestureHandler,
   State,
 } from "react-native-gesture-handler";
+import { useFocusEffect } from "@react-navigation/native";
 import { styles } from "../styles/styles";
 import { DataContext } from "../context/DataContext";
+
+const windowWidth = Dimensions.get("window").width;
 
 function FlashcardScreen({ route, navigation }) {
   const { deckId } = route.params;
@@ -30,9 +33,8 @@ function FlashcardScreen({ route, navigation }) {
   // Animation values
   const position = new Animated.ValueXY();
   const swipeThreshold = 80;
-  const screenWidth = Dimensions.get("window").width;
   const rotateCard = position.x.interpolate({
-    inputRange: [-screenWidth / 2, 0, screenWidth / 2],
+    inputRange: [-windowWidth / 2, 0, windowWidth / 2],
     outputRange: ["-10deg", "0deg", "10deg"],
     extrapolate: "clamp",
   });
@@ -41,13 +43,32 @@ function FlashcardScreen({ route, navigation }) {
   const deck = decks.find((d) => d.id === deckId);
   const cards = deck ? deck.cards : [];
 
-  // Calculate correct and incorrect counts from cardStatuses
+  // Calculate correct and incorrect counts
   const correctCount = Object.values(cardStatuses).filter(
     (status) => status === "correct"
   ).length;
   const incorrectCount = Object.values(cardStatuses).filter(
     (status) => status === "incorrect"
   ).length;
+
+  // Add this effect to update cards when the screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      // Find the current deck again to get fresh data
+      const updatedDeck = decks.find((d) => d.id === deckId);
+      if (updatedDeck) {
+        // If in study mode, update the cards to review while maintaining order
+        if (studyMode && cardsToReview.length > 0) {
+          const updatedCardsToReview = cardsToReview.map((card) => {
+            // Find the updated version of this card
+            const updatedCard = updatedDeck.cards.find((c) => c.id === card.id);
+            return updatedCard || card; // Use updated card if found, otherwise keep original
+          });
+          setCardsToReview(updatedCardsToReview);
+        }
+      }
+    }, [decks, deckId, studyMode])
+  );
 
   // Handle empty deck case
   if (cards.length === 0) {
@@ -289,278 +310,342 @@ function FlashcardScreen({ route, navigation }) {
     setCardStatuses({});
   };
 
-  // Handle gesture state change
-  const onGestureEvent = Animated.event(
-    [{ nativeEvent: { translationX: position.x } }],
-    { useNativeDriver: false }
-  );
-
-  const onHandlerStateChange = (event) => {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      const { translationX, velocityX } = event.nativeEvent;
-
-      // Consider both distance and velocity for swipe detection
-      // A fast swipe with less distance or a slow swipe with more distance can both trigger the action
-      if (translationX > swipeThreshold || velocityX > 200) {
-        // Swiped right - Got it right
-        Animated.timing(position, {
-          toValue: { x: screenWidth, y: 0 },
-          duration: 200,
-          useNativeDriver: false,
-        }).start(() => {
-          handleGotIt();
-          position.setValue({ x: 0, y: 0 });
-        });
-      } else if (translationX < -swipeThreshold || velocityX < -200) {
-        // Swiped left - Got it wrong
-        Animated.timing(position, {
-          toValue: { x: -screenWidth, y: 0 },
-          duration: 200,
-          useNativeDriver: false,
-        }).start(() => {
-          handleDidntGetIt();
-          position.setValue({ x: 0, y: 0 });
-        });
-      } else {
-        // Not swiped far enough, reset position
-        Animated.spring(position, {
-          toValue: { x: 0, y: 0 },
-          friction: 5,
-          useNativeDriver: false,
-        }).start();
-      }
-    }
-  };
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.headerWithBack}>
-          <TouchableOpacity
-            style={styles.backArrow}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerText}>{deck.title}</Text>
-            <Text style={styles.subHeaderText}>
-              {studyMode ? "Study Mode" : deck.language}
+    <SafeAreaView style={flashcardStyles.container}>
+      <View style={flashcardStyles.header}>
+        <TouchableOpacity
+          style={flashcardStyles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <View style={flashcardStyles.headerTextContainer}>
+          <Text style={flashcardStyles.headerTitle}>{deck.title}</Text>
+          <Text style={flashcardStyles.headerSubtitle}>
+            {studyMode ? "Study Mode" : deck.language}
+          </Text>
+          {studyMode && (
+            <Text style={flashcardStyles.studyStats}>
+              {correctCount}✅ {incorrectCount}❌ • {cardsToReview.length} cards
+              left
             </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.addCardButton}
-            onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
+          )}
         </View>
+        <TouchableOpacity
+          style={flashcardStyles.addButton}
+          onPress={() => navigation.navigate("AddCard", { deckId: deck.id })}
+        >
+          <Ionicons name="add" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
-        {studyMode && (
-          <View style={styles.studyStats}>
-            <Text style={styles.studyCounter}>
-              <Text style={styles.correctStat}>{correctCount}✅</Text>{" "}
-              <Text style={styles.incorrectStat}>{incorrectCount}❌</Text>
-              {" • "}
-              {cardsToReview.length} cards left
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.cardContainer}>
-          {studyMode ? (
-            <PanGestureHandler
-              onGestureEvent={onGestureEvent}
-              onHandlerStateChange={onHandlerStateChange}
-            >
-              <Animated.View
-                style={[
-                  styles.swipeableCard,
-                  {
-                    transform: [
-                      { translateX: position.x },
-                      { rotate: rotateCard },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.fullCard}
-                  activeOpacity={0.9}
-                  onPress={flipCard}
-                >
-                  <Text style={styles.cardText}>
-                    {isFlipped ? currentCard.back : currentCard.front}
-                  </Text>
-                  {isFlipped && currentCard.example && (
-                    <Text style={styles.exampleText}>
-                      Example: {currentCard.example}
-                    </Text>
-                  )}
-                  <Text style={styles.flipHint}>Tap to flip</Text>
-
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={() =>
-                      navigation.navigate("EditCard", {
-                        deckId: deck.id,
-                        cardIndex: currentCardIndex,
-                      })
+      <View style={flashcardStyles.cardContainer}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <PanGestureHandler
+            onGestureEvent={Animated.event(
+              [{ nativeEvent: { translationX: position.x } }],
+              { useNativeDriver: false }
+            )}
+            onHandlerStateChange={({ nativeEvent }) => {
+              if (nativeEvent.oldState === State.ACTIVE) {
+                const { translationX } = nativeEvent;
+                if (Math.abs(translationX) > swipeThreshold) {
+                  const toValue = translationX > 0 ? windowWidth : -windowWidth;
+                  Animated.timing(position, {
+                    toValue: { x: toValue, y: 0 },
+                    duration: 200,
+                    useNativeDriver: false,
+                  }).start(() => {
+                    position.setValue({ x: 0, y: 0 });
+                    if (studyMode) {
+                      if (translationX > 0) {
+                        handleGotIt();
+                      } else {
+                        handleDidntGetIt();
+                      }
+                    } else {
+                      // Regular navigation mode
+                      if (translationX > 0) {
+                        // Swipe right - go to next card
+                        nextCard();
+                      } else {
+                        // Swipe left - go to previous card
+                        prevCard();
+                      }
                     }
-                  >
-                    <Ionicons name="pencil" size={24} color="#2196F3" />
-                  </TouchableOpacity>
+                  });
+                } else {
+                  Animated.spring(position, {
+                    toValue: { x: 0, y: 0 },
+                    friction: 5,
+                    useNativeDriver: false,
+                  }).start();
+                }
+              }
+            }}
+          >
+            <Animated.View
+              style={[
+                flashcardStyles.card,
+                {
+                  transform: [
+                    { translateX: position.x },
+                    { rotate: rotateCard },
+                  ],
+                },
+              ]}
+            >
+              <View style={flashcardStyles.cardActions}>
+                <TouchableOpacity
+                  style={flashcardStyles.editButton}
+                  onPress={() =>
+                    navigation.navigate("EditCard", {
+                      deckId: deck.id,
+                      cardIndex: currentCardIndex,
+                    })
+                  }
+                >
+                  <Ionicons name="pencil" size={24} color="#2196F3" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={flashcardStyles.deleteButton}
+                  onPress={deleteCurrentCard}
+                >
+                  <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
 
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={deleteCurrentCard}
-                  >
-                    <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-                  </TouchableOpacity>
+              <TouchableOpacity
+                style={flashcardStyles.cardContent}
+                onPress={() => setIsFlipped(!isFlipped)}
+                activeOpacity={0.9}
+              >
+                <Text style={flashcardStyles.cardText}>
+                  {isFlipped ? currentCard.back : currentCard.front}
+                </Text>
+                {isFlipped && currentCard.example && (
+                  <Text style={flashcardStyles.exampleText}>
+                    Example: {currentCard.example}
+                  </Text>
+                )}
+              </TouchableOpacity>
 
-                  {/* Arrows inside the card */}
+              <Text style={flashcardStyles.flipHint}>Tap to flip</Text>
+
+              {studyMode && (
+                <View style={flashcardStyles.navigationButtons}>
                   <TouchableOpacity
-                    style={[styles.arrowButton, styles.leftArrow]}
+                    style={[
+                      flashcardStyles.navButton,
+                      flashcardStyles.prevButton,
+                    ]}
                     onPress={handleDidntGetIt}
                   >
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                   </TouchableOpacity>
-
                   <TouchableOpacity
-                    style={[styles.arrowButton, styles.rightArrow]}
+                    style={[
+                      flashcardStyles.navButton,
+                      flashcardStyles.nextButton,
+                    ]}
                     onPress={handleGotIt}
                   >
                     <Ionicons name="arrow-forward" size={24} color="#fff" />
                   </TouchableOpacity>
-                </TouchableOpacity>
-              </Animated.View>
-            </PanGestureHandler>
-          ) : (
-            <PanGestureHandler
-              onGestureEvent={onGestureEvent}
-              onHandlerStateChange={(event) => {
-                if (event.nativeEvent.oldState === State.ACTIVE) {
-                  const { translationX, velocityX } = event.nativeEvent;
+                </View>
+              )}
+            </Animated.View>
+          </PanGestureHandler>
+        </GestureHandlerRootView>
+      </View>
 
-                  // Consider both distance and velocity for swipe detection
-                  if (translationX > swipeThreshold || velocityX > 200) {
-                    // Swiped right - Next card
-                    Animated.timing(position, {
-                      toValue: { x: screenWidth, y: 0 },
-                      duration: 200,
-                      useNativeDriver: false,
-                    }).start(() => {
-                      nextCard();
-                      position.setValue({ x: 0, y: 0 });
-                    });
-                  } else if (
-                    translationX < -swipeThreshold ||
-                    velocityX < -200
-                  ) {
-                    // Swiped left - Previous card
-                    Animated.timing(position, {
-                      toValue: { x: -screenWidth, y: 0 },
-                      duration: 200,
-                      useNativeDriver: false,
-                    }).start(() => {
-                      prevCard();
-                      position.setValue({ x: 0, y: 0 });
-                    });
-                  } else {
-                    // Not swiped far enough, reset position
-                    Animated.spring(position, {
-                      toValue: { x: 0, y: 0 },
-                      friction: 5,
-                      useNativeDriver: false,
-                    }).start();
-                  }
-                }
-              }}
-            >
-              <Animated.View
-                style={[
-                  styles.swipeableCard,
-                  {
-                    transform: [
-                      { translateX: position.x },
-                      { rotate: rotateCard },
-                    ],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.fullCard}
-                  activeOpacity={0.9}
-                  onPress={flipCard}
-                >
-                  <Text style={styles.cardText}>
-                    {isFlipped ? currentCard.back : currentCard.front}
-                  </Text>
-                  {isFlipped && currentCard.example && (
-                    <Text style={styles.exampleText}>
-                      Example: {currentCard.example}
-                    </Text>
-                  )}
-                  <Text style={styles.flipHint}>Tap to flip</Text>
+      <Text style={flashcardStyles.counter}>
+        Card {currentCardIndex + 1} of{" "}
+        {studyMode ? cardsToReview.length : cards.length}
+      </Text>
 
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={() =>
-                      navigation.navigate("EditCard", {
-                        deckId: deck.id,
-                        cardIndex: currentCardIndex,
-                      })
-                    }
-                  >
-                    <Ionicons name="pencil" size={24} color="#2196F3" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={deleteCurrentCard}
-                  >
-                    <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              </Animated.View>
-            </PanGestureHandler>
-          )}
-        </View>
-
-        <Text style={styles.counter}>
-          Card {currentCardIndex + 1} of{" "}
-          {studyMode ? cardsToReview.length : cards.length}
-        </Text>
-
-        {!studyMode ? (
-          <>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.studyButton,
-                styles.fullWidthButton,
-              ]}
-              onPress={startStudyMode}
-            >
-              <Text style={styles.buttonText}>Start Studying</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <TouchableOpacity
-            style={[styles.button, styles.cancelButton, styles.fullWidthButton]}
-            onPress={() => {
-              setStudyMode(false);
-              setCardsToReview([]);
-              setCurrentCardIndex(0);
-              setIsFlipped(false);
-            }}
-          >
-            <Text style={styles.buttonText}>Exit Study Mode</Text>
-          </TouchableOpacity>
-        )}
-      </SafeAreaView>
-    </GestureHandlerRootView>
+      {studyMode ? (
+        <TouchableOpacity
+          style={flashcardStyles.exitButton}
+          onPress={() => {
+            setStudyMode(false);
+            setCardsToReview([]);
+            setCurrentCardIndex(0);
+            setIsFlipped(false);
+          }}
+        >
+          <Text style={flashcardStyles.buttonText}>Exit Study Mode</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={flashcardStyles.studyButton}
+          onPress={() => {
+            setStudyMode(true);
+            setCardsToReview([...cards]);
+            setCurrentCardIndex(0);
+            setIsFlipped(false);
+            setCardStatuses({});
+          }}
+        >
+          <Text style={flashcardStyles.buttonText}>Start Studying</Text>
+        </TouchableOpacity>
+      )}
+    </SafeAreaView>
   );
 }
+
+const flashcardStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  backButton: {
+    padding: 10,
+    marginLeft: -10,
+  },
+  headerTextContainer: {
+    flex: 1,
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
+  },
+  headerSubtitle: {
+    fontSize: 18,
+    color: "#999",
+    marginTop: 5,
+  },
+  addButton: {
+    padding: 10,
+    marginRight: -10,
+  },
+  cardContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  card: {
+    width: windowWidth - 40,
+    aspectRatio: 0.7,
+    backgroundColor: "#2a2a2a",
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+  },
+  cardActions: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    zIndex: 1,
+  },
+  editButton: {
+    padding: 5,
+  },
+  deleteButton: {
+    padding: 5,
+  },
+  cardContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 50,
+  },
+  cardText: {
+    fontSize: 36,
+    color: "#fff",
+    textAlign: "center",
+    fontWeight: "500",
+    paddingHorizontal: 20,
+  },
+  exampleText: {
+    fontSize: 16,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 20,
+  },
+  flipHint: {
+    color: "#666",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  counter: {
+    color: "#999",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 15,
+    fontWeight: "500",
+  },
+  navigationButtons: {
+    position: "absolute",
+    bottom: "50%",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  navButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prevButton: {
+    backgroundColor: "#FF3B30",
+  },
+  nextButton: {
+    backgroundColor: "#4CAF50",
+  },
+  studyButton: {
+    backgroundColor: "#4CAF50",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 10,
+  },
+  exitButton: {
+    backgroundColor: "#2196F3",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 15,
+    borderRadius: 10,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  studyStats: {
+    color: "#999",
+    fontSize: 14,
+    marginTop: 5,
+    textAlign: "center",
+  },
+});
 
 export default FlashcardScreen;

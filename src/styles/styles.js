@@ -4,12 +4,12 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#1a1a1a",
-    paddingTop: 60,
+    paddingTop: 20,
   },
   header: {
     marginBottom: 20,
     alignItems: "center",
-    marginTop: 40,
+    marginTop: 20,
   },
   headerText: {
     fontSize: 32,
@@ -28,7 +28,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 80,
+    paddingTop: 20,
     marginBottom: 20,
   },
   headerCenter: {
@@ -196,6 +196,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 30,
     borderRadius: 25,
     marginTop: 10,
+    marginBottom: 30,
     alignSelf: "center",
     minWidth: 180,
     shadowColor: "#000",
@@ -363,5 +364,15 @@ export const styles = StyleSheet.create({
   rightArrow: {
     right: 20,
     backgroundColor: "#4CAF50",
+  },
+  translatingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  translatingText: {
+    color: "#4CAF50",
+    marginLeft: 10,
+    fontSize: 14,
   },
 });

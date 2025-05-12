@@ -44,7 +44,7 @@ function LanguageDecksScreen({ route, navigation }) {
                 (deck) => deck.language !== language
               );
 
-              // Update decks state and storage
+              // Update decks state first
               await saveData(updatedDecks);
               updateDecks(updatedDecks);
 
@@ -61,8 +61,10 @@ function LanguageDecksScreen({ route, navigation }) {
                 );
               }
 
-              // Navigate back to languages screen
-              navigation.goBack();
+              // Ensure all state updates are complete before navigation
+              setTimeout(() => {
+                navigation.goBack();
+              }, 100);
             } catch (error) {
               console.error("Error deleting language:", error);
               Alert.alert(
