@@ -28,6 +28,7 @@ function AddCardScreen({ route, navigation }) {
   const [autoTranslate, setAutoTranslate] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationDirection, setTranslationDirection] = useState(null);
+  const [isEnglishFirst, setIsEnglishFirst] = useState(false);
 
   // Find the current deck
   const deckIndex = decks.findIndex((d) => d.id === deckId);
@@ -88,12 +89,13 @@ function AddCardScreen({ route, navigation }) {
     if (front.trim() && back.trim()) {
       const newCard = {
         id: Date.now().toString(),
-        front: front,
-        back: back,
+        front: isEnglishFirst ? back : front,
+        back: isEnglishFirst ? front : back,
         example: example.trim() || null,
         pronunciation: pronunciation.trim() || null,
         language: deck.language,
         displayName: deck.displayName,
+        isEnglishFirst: isEnglishFirst,
       };
 
       const updatedDeck = {
@@ -159,9 +161,19 @@ function AddCardScreen({ route, navigation }) {
               />
             </View>
 
+            <View style={addCardStyles.autoTranslateContainer}>
+              <Text style={addCardStyles.label}>Show English on front</Text>
+              <Switch
+                value={isEnglishFirst}
+                onValueChange={setIsEnglishFirst}
+                trackColor={{ false: "#444", true: "#4CAF50" }}
+                thumbColor={isEnglishFirst ? "#fff" : "#f4f3f4"}
+              />
+            </View>
+
             <View style={addCardStyles.inputContainer}>
               <Text style={addCardStyles.label}>
-                Front ({deck.displayName})
+                {isEnglishFirst ? "Back" : "Front"} ({deck.displayName})
               </Text>
               <TextInput
                 style={addCardStyles.input}
@@ -179,7 +191,7 @@ function AddCardScreen({ route, navigation }) {
               />
 
               <Text style={[addCardStyles.label, { marginTop: 15 }]}>
-                Back (English)
+                {isEnglishFirst ? "Front" : "Back"} (English)
               </Text>
               {isTranslating && (
                 <View style={addCardStyles.translatingContainer}>

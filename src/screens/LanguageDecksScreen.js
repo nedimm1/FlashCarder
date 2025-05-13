@@ -16,14 +16,37 @@ import { styles } from "../styles/styles";
 import { DataContext } from "../context/DataContext";
 import { saveData } from "../utils/storage";
 
+// Extend the imported styles with our additional styles
+Object.assign(styles, {
+  deckTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  studyBadge: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 10,
+  },
+  studyBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+});
+
 function LanguageDecksScreen({ route, navigation }) {
   const { language, displayName } = route.params;
-  const { decks, updateDecks } = React.useContext(DataContext);
+  const { decks, updateDecks, studySessions } = React.useContext(DataContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [newDeckTitle, setNewDeckTitle] = useState("");
 
   // Filter decks by language code
-  const languageDecks = decks.filter((deck) => deck.language === language);
+  const languageDecks = Array.isArray(decks)
+    ? decks.filter((deck) => deck.language === language)
+    : [];
 
   const handleDeleteLanguage = () => {
     Alert.alert(
@@ -117,7 +140,14 @@ function LanguageDecksScreen({ route, navigation }) {
             }
           >
             <View style={styles.deckContent}>
-              <Text style={styles.deckTitle}>{item.title}</Text>
+              <View style={styles.deckTitleContainer}>
+                <Text style={styles.deckTitle}>{item.title}</Text>
+                {studySessions[item.id] && (
+                  <View style={styles.studyBadge}>
+                    <Text style={styles.studyBadgeText}>Study in Progress</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.deckSubtitle}>{item.cards.length} cards</Text>
             </View>
             <TouchableOpacity
@@ -196,7 +226,9 @@ function LanguageDecksScreen({ route, navigation }) {
                       displayName: displayName,
                       cards: [],
                     };
-                    const updatedDecks = [...decks, newDeck];
+                    const updatedDecks = Array.isArray(decks)
+                      ? [...decks, newDeck]
+                      : [newDeck];
                     updateDecks(updatedDecks);
                     setNewDeckTitle("");
                     setModalVisible(false);

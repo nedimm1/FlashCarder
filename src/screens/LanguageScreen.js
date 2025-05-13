@@ -18,7 +18,7 @@ import LanguageSelector from "../components/LanguageSelector";
 import { SUPPORTED_LANGUAGES } from "../services/translationService";
 
 function LanguageScreen({ route, navigation }) {
-  const { decks, updateDecks } = React.useContext(DataContext);
+  const { decks, updateDecks, isLoading } = React.useContext(DataContext);
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState("");
@@ -34,7 +34,35 @@ function LanguageScreen({ route, navigation }) {
       try {
         const stored = await AsyncStorage.getItem("languages");
         if (stored) {
-          setLanguages(JSON.parse(stored));
+          const parsedLanguages = JSON.parse(stored);
+
+          // Migration: Convert old format to new format if needed
+          const migratedLanguages = parsedLanguages.map((lang) => {
+            // If it's already in the new format, return as is
+            if (lang.code && lang.displayName) {
+              return lang;
+            }
+
+            // If it's in the old format (just the language code)
+            // Create the new format with the code and a display name
+            const displayName =
+              Object.entries(SUPPORTED_LANGUAGES).find(
+                ([name, code]) => code === lang
+              )?.[0] || lang;
+
+            return {
+              code: lang,
+              displayName: displayName,
+            };
+          });
+
+          setLanguages(migratedLanguages);
+
+          // Save the migrated format back to storage
+          await AsyncStorage.setItem(
+            "languages",
+            JSON.stringify(migratedLanguages)
+          );
         }
       } catch (error) {
         console.error("Error loading languages:", error);
@@ -57,31 +85,55 @@ function LanguageScreen({ route, navigation }) {
     }
   }, [languages]);
 
-  // Count decks per language
-  const deckCounts = languages.reduce((acc, lang) => {
-    acc[lang.code] = decks.filter((deck) => deck.language === lang.code).length;
-    return acc;
-  }, {});
-
   // Add languages from existing decks that might not be in our languages list
   useEffect(() => {
-    const deckLanguages = decks.map((deck) => ({
-      code: deck.language,
-      displayName:
-        deck.displayName ||
-        Object.entries(SUPPORTED_LANGUAGES).find(
-          ([name, code]) => code === deck.language
-        )?.[0],
-    }));
+    const migrateDecks = async () => {
+      if (!decks) return; // Guard against undefined decks
 
-    setLanguages((prev) => {
-      const existingCodes = new Set(prev.map((lang) => lang.code));
-      const newLanguages = deckLanguages.filter(
-        (lang) => !existingCodes.has(lang.code)
-      );
+      const updatedDecks = decks.map((deck) => {
+        // If deck already has the new format, return as is
+        if (deck.displayName) {
+          return deck;
+        }
 
-      return [...prev, ...newLanguages];
-    });
+        // Find display name for the language
+        const displayName =
+          Object.entries(SUPPORTED_LANGUAGES).find(
+            ([name, code]) => code === deck.language
+          )?.[0] || deck.language;
+
+        return {
+          ...deck,
+          displayName: displayName,
+        };
+      });
+
+      // Update decks if any were migrated
+      if (
+        updatedDecks.some(
+          (deck, i) => deck.displayName !== decks[i].displayName
+        )
+      ) {
+        updateDecks(updatedDecks);
+      }
+
+      // Create language entries from decks
+      const deckLanguages = updatedDecks.map((deck) => ({
+        code: deck.language,
+        displayName: deck.displayName,
+      }));
+
+      setLanguages((prev) => {
+        const existingCodes = new Set(prev.map((lang) => lang.code));
+        const newLanguages = deckLanguages.filter(
+          (lang) => !existingCodes.has(lang.code)
+        );
+
+        return [...prev, ...newLanguages];
+      });
+    };
+
+    migrateDecks();
   }, [decks]);
 
   // Handle edit navigation from LanguageDecksScreen
@@ -95,11 +147,34 @@ function LanguageScreen({ route, navigation }) {
     }
   }, [route.params?.editLanguage]);
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerText}>Flashcarder</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Count decks per language
+  const deckCounts = languages.reduce((acc, lang) => {
+    if (!Array.isArray(decks)) {
+      acc[lang.code] = 0;
+      return acc;
+    }
+    acc[lang.code] = decks.filter((deck) => deck.language === lang.code).length;
+    return acc;
+  }, {});
+
   // Handle language deletion
   const handleDeleteLanguage = (language) => {
     Alert.alert(
       "Delete Language",
-      `Are you sure you want to delete "${language.displayName}"? This will also delete all decks in this language.`,
+      `Are you sure you want to delete "${language.displayName}"? This will also delete all decks in this category.`,
       [
         {
           text: "Cancel",
@@ -112,7 +187,11 @@ function LanguageScreen({ route, navigation }) {
             try {
               // Remove language from languages list
               const updatedLanguages = languages.filter(
-                (lang) => lang.code !== language.code
+                (lang) =>
+                  !(
+                    lang.code === language.code &&
+                    lang.displayName === language.displayName
+                  )
               );
               setLanguages(updatedLanguages);
               await AsyncStorage.setItem(
@@ -120,9 +199,13 @@ function LanguageScreen({ route, navigation }) {
                 JSON.stringify(updatedLanguages)
               );
 
-              // Remove all decks in this language
+              // Remove only decks that match both language code and display name
               const updatedDecks = decks.filter(
-                (deck) => deck.language !== language.code
+                (deck) =>
+                  !(
+                    deck.language === language.code &&
+                    deck.displayName === language.displayName
+                  )
               );
               updateDecks(updatedDecks);
             } catch (error) {
@@ -142,23 +225,8 @@ function LanguageScreen({ route, navigation }) {
   };
 
   const handleSaveEdit = () => {
-    if (!selectedLanguage) {
-      Alert.alert("Error", "Please select a language");
-      return;
-    }
-
     if (!displayName.trim()) {
       Alert.alert("Error", "Please enter a name for this language section");
-      return;
-    }
-
-    // Check if language code already exists and it's not the same as current
-    const languageExists = languages.some(
-      (lang) =>
-        lang.code === selectedLanguage && lang.code !== editingLanguage.code
-    );
-    if (languageExists) {
-      Alert.alert("Error", "This language already exists");
       return;
     }
 
@@ -189,22 +257,8 @@ function LanguageScreen({ route, navigation }) {
   };
 
   const handleCreateLanguage = () => {
-    if (!selectedLanguage) {
-      Alert.alert("Error", "Please select a language");
-      return;
-    }
-
     if (!displayName.trim()) {
       Alert.alert("Error", "Please enter a name for this language section");
-      return;
-    }
-
-    // Check if language code already exists
-    const languageExists = languages.some(
-      (lang) => lang.code === selectedLanguage
-    );
-    if (languageExists) {
-      Alert.alert("Error", "This language already exists");
       return;
     }
 
@@ -228,7 +282,7 @@ function LanguageScreen({ route, navigation }) {
 
       <FlatList
         data={languages}
-        keyExtractor={(item) => item.code}
+        keyExtractor={(item) => `${item.code}-${item.displayName}`}
         style={styles.deckList}
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -261,7 +315,7 @@ function LanguageScreen({ route, navigation }) {
         style={styles.addButton}
         onPress={() => setModalVisible(true)}
       >
-        <Text style={styles.addButtonText}>+ Add New Language</Text>
+        <Text style={styles.addButtonText}>+ Add New Language Category</Text>
       </TouchableOpacity>
 
       {/* Add Language Modal */}
@@ -273,7 +327,7 @@ function LanguageScreen({ route, navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Language</Text>
+            <Text style={styles.modalTitle}>Add New Language Category</Text>
             <TextInput
               style={styles.input}
               placeholder="Name for the language category"
@@ -281,7 +335,9 @@ function LanguageScreen({ route, navigation }) {
               value={displayName}
               onChangeText={setDisplayName}
             />
-            <Text style={styles.inputLabel}>Select Available Language:</Text>
+            <Text style={styles.inputLabel}>
+              Select Language for Translation:
+            </Text>
             <LanguageSelector
               selectedLanguage={selectedLanguage}
               onSelect={setSelectedLanguage}
@@ -330,7 +386,9 @@ function LanguageScreen({ route, navigation }) {
               value={displayName}
               onChangeText={setDisplayName}
             />
-            <Text style={styles.inputLabel}>Select Available Language:</Text>
+            <Text style={styles.inputLabel}>
+              Select Language for Translation:
+            </Text>
             <LanguageSelector
               selectedLanguage={selectedLanguage}
               onSelect={setSelectedLanguage}

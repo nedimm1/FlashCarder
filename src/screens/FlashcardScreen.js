@@ -23,12 +23,64 @@ const windowWidth = Dimensions.get("window").width;
 
 function FlashcardScreen({ route, navigation }) {
   const { deckId } = route.params;
-  const { decks, updateDecks } = React.useContext(DataContext);
+  const {
+    decks,
+    updateDecks,
+    studySessions,
+    updateStudySession,
+    clearStudySession,
+  } = React.useContext(DataContext);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [studyMode, setStudyMode] = useState(false);
   const [cardsToReview, setCardsToReview] = useState([]);
   const [cardStatuses, setCardStatuses] = useState({});
+  const [isSecondRound, setIsSecondRound] = useState(false);
+  const [cardsReviewed, setCardsReviewed] = useState(0);
+
+  // Load saved study session on mount
+  useEffect(() => {
+    const savedSession = studySessions[deckId];
+    if (savedSession && savedSession.cardsToReview.length > 0) {
+      setStudyMode(true);
+      setCardsToReview(savedSession.cardsToReview);
+      setCardStatuses(savedSession.cardStatuses);
+      setIsSecondRound(savedSession.isSecondRound);
+      setCardsReviewed(savedSession.cardsReviewed);
+      setCurrentCardIndex(savedSession.currentCardIndex);
+    } else {
+      // If there are no cards to review, make sure we're not in study mode
+      setStudyMode(false);
+      setCardsToReview([]);
+      setCardStatuses({});
+      setIsSecondRound(false);
+      setCardsReviewed(0);
+      setCurrentCardIndex(0);
+      clearStudySession(deckId);
+    }
+  }, []);
+
+  // Save study session state when leaving
+  useEffect(() => {
+    return () => {
+      if (studyMode && cardsToReview.length > 0) {
+        updateStudySession(deckId, {
+          cardsToReview,
+          cardStatuses,
+          isSecondRound,
+          cardsReviewed,
+          currentCardIndex,
+        });
+      }
+    };
+  }, [
+    studyMode,
+    cardsToReview,
+    cardStatuses,
+    isSecondRound,
+    cardsReviewed,
+    currentCardIndex,
+  ]);
 
   // Animation values
   const position = new Animated.ValueXY();
@@ -113,7 +165,11 @@ function FlashcardScreen({ route, navigation }) {
         <View style={styles.headerWithBack}>
           <TouchableOpacity
             style={styles.backArrow}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              setStudyMode(false);
+              clearStudySession(deckId);
+              navigation.goBack();
+            }}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
@@ -130,34 +186,53 @@ function FlashcardScreen({ route, navigation }) {
 
         <View style={styles.completionContainer}>
           <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
-          <Text style={styles.completionText}>Study Complete!</Text>
+          <Text style={styles.completionText}>
+            {isSecondRound ? "Study Complete!" : "First Round Complete!"}
+          </Text>
           <Text style={styles.completionSubtext}>
-            You've gone through all the cards in this deck.
+            {isSecondRound
+              ? "You've completed both rounds of study."
+              : "Now let's practice with English on the front!"}
           </Text>
 
-          <TouchableOpacity
-            style={[styles.button, styles.resetButton]}
-            onPress={() => {
-              // Reset study session with all cards
-              setCardsToReview([...cards]);
-              setCurrentCardIndex(0);
-              setIsFlipped(false);
-            }}
-          >
-            <Text style={styles.buttonText}>Study Again</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.backButton]}
-            onPress={() => {
-              setStudyMode(false);
-              setCardsToReview([]);
-              setCurrentCardIndex(0);
-              setIsFlipped(false);
-            }}
-          >
-            <Text style={styles.buttonText}>Exit Study Mode</Text>
-          </TouchableOpacity>
+          {!isSecondRound ? (
+            <TouchableOpacity
+              style={[styles.button, styles.resetButton]}
+              onPress={() => {
+                const reversedCards = cards.map((card) => ({
+                  ...card,
+                  front: card.back,
+                  back: card.front,
+                  isReversed: true,
+                }));
+                setCardsToReview(reversedCards);
+                setCurrentCardIndex(0);
+                setIsFlipped(false);
+                setIsSecondRound(true);
+                setCardStatuses({});
+                setCardsReviewed(0);
+              }}
+            >
+              <Text style={styles.buttonText}>Start English Front Round</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.button, styles.resetButton]}
+              onPress={() => {
+                setStudyMode(false);
+                setCardsToReview([]);
+                setCurrentCardIndex(0);
+                setIsFlipped(false);
+                setIsSecondRound(false);
+                setCardStatuses({});
+                setCardsReviewed(0);
+                clearStudySession(deckId);
+                navigation.goBack();
+              }}
+            >
+              <Text style={styles.buttonText}>Exit Study Mode</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -178,6 +253,9 @@ function FlashcardScreen({ route, navigation }) {
       newStatuses[currentCard.id] = "correct";
       return newStatuses;
     });
+
+    // Increment cards reviewed counter
+    setCardsReviewed((prev) => prev + 1);
 
     if (studyMode) {
       const updatedCardsToReview = cardsToReview.filter(
@@ -305,9 +383,21 @@ function FlashcardScreen({ route, navigation }) {
     setCardsToReview([...cards]);
     setCurrentCardIndex(0);
     setIsFlipped(false);
-
-    // Initialize card statuses with all null values
+    setIsSecondRound(false);
     setCardStatuses({});
+    setCardsReviewed(0);
+  };
+
+  // Update exit study mode to clear the session
+  const exitStudyMode = () => {
+    setStudyMode(false);
+    setCardsToReview([]);
+    setCurrentCardIndex(0);
+    setIsFlipped(false);
+    setIsSecondRound(false);
+    setCardStatuses({});
+    setCardsReviewed(0);
+    clearStudySession(deckId);
   };
 
   return (
@@ -470,8 +560,8 @@ function FlashcardScreen({ route, navigation }) {
       </View>
 
       <Text style={flashcardStyles.counter}>
-        Card {currentCardIndex + 1} of{" "}
-        {studyMode ? cardsToReview.length : cards.length}
+        Card {studyMode ? cardsReviewed + 1 : currentCardIndex + 1} of{" "}
+        {studyMode ? cardsToReview.length + cardsReviewed : cards.length}
       </Text>
 
       {studyMode ? (
@@ -482,6 +572,10 @@ function FlashcardScreen({ route, navigation }) {
             setCardsToReview([]);
             setCurrentCardIndex(0);
             setIsFlipped(false);
+            setIsSecondRound(false);
+            setCardStatuses({});
+            setCardsReviewed(0);
+            clearStudySession(deckId);
           }}
         >
           <Text style={flashcardStyles.buttonText}>Exit Study Mode</Text>
@@ -489,13 +583,7 @@ function FlashcardScreen({ route, navigation }) {
       ) : (
         <TouchableOpacity
           style={flashcardStyles.studyButton}
-          onPress={() => {
-            setStudyMode(true);
-            setCardsToReview([...cards]);
-            setCurrentCardIndex(0);
-            setIsFlipped(false);
-            setCardStatuses({});
-          }}
+          onPress={startStudyMode}
         >
           <Text style={flashcardStyles.buttonText}>Start Studying</Text>
         </TouchableOpacity>
