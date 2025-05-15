@@ -39,31 +39,55 @@ function FlashcardScreen({ route, navigation }) {
   const [cardsReviewed, setCardsReviewed] = useState(0);
 
   // Single effect to manage study session state
-  useEffect(() => {
-    const savedSession = studySessions[deckId];
-    if (savedSession && savedSession.cardsToReview?.length > 0) {
-      // Restore saved session
-      setStudyMode(true);
-      setCardsToReview(savedSession.cardsToReview);
-      setCardStatuses(savedSession.cardStatuses || {});
-      setIsSecondRound(savedSession.isSecondRound || false);
-      setCardsReviewed(savedSession.cardsReviewed || 0);
-      setCurrentCardIndex(savedSession.currentCardIndex || 0);
-    }
-
-    // Cleanup: save session if in study mode
-    return () => {
-      if (studyMode && cardsToReview.length > 0) {
-        updateStudySession(deckId, {
-          cardsToReview,
-          cardStatuses,
-          isSecondRound,
-          cardsReviewed,
-          currentCardIndex,
-        });
+  useFocusEffect(
+    React.useCallback(() => {
+      const savedSession = studySessions[deckId];
+      if (savedSession && savedSession.cardsToReview?.length > 0) {
+        // Only restore session if we're not already in the same state
+        if (!studyMode || currentCardIndex !== savedSession.currentCardIndex) {
+          setStudyMode(true);
+          setCardsToReview(savedSession.cardsToReview);
+          setCardStatuses(savedSession.cardStatuses || {});
+          setIsSecondRound(savedSession.isSecondRound || false);
+          setCardsReviewed(savedSession.cardsReviewed || 0);
+          setCurrentCardIndex(savedSession.currentCardIndex || 0);
+        }
       }
-    };
-  }, [deckId]); // Only run on mount and cleanup
+
+      // Cleanup: save session if in study mode and there are changes to save
+      return () => {
+        if (studyMode && cardsToReview.length > 0) {
+          const currentSession = studySessions[deckId];
+          const hasChanges =
+            !currentSession ||
+            currentSession.currentCardIndex !== currentCardIndex ||
+            currentSession.cardsReviewed !== cardsReviewed ||
+            JSON.stringify(currentSession.cardsToReview) !==
+              JSON.stringify(cardsToReview);
+
+          if (hasChanges) {
+            updateStudySession(deckId, {
+              cardsToReview,
+              cardStatuses,
+              isSecondRound,
+              cardsReviewed,
+              currentCardIndex,
+            });
+          }
+        }
+      };
+    }, [
+      deckId,
+      studyMode,
+      cardsToReview,
+      cardStatuses,
+      isSecondRound,
+      cardsReviewed,
+      currentCardIndex,
+      studySessions,
+      updateStudySession,
+    ])
+  );
 
   // Animation values
   const position = new Animated.ValueXY();
@@ -356,12 +380,15 @@ function FlashcardScreen({ route, navigation }) {
 
   // Reset study stats when starting study mode
   const startStudyMode = () => {
+    // Check if there's an existing session first
+    const savedSession = studySessions[deckId];
+
     const newSession = {
-      cardsToReview: [...cards],
-      cardStatuses: {},
-      isSecondRound: false,
-      cardsReviewed: 0,
-      currentCardIndex: 0,
+      cardsToReview: savedSession?.cardsToReview || [...cards],
+      cardStatuses: savedSession?.cardStatuses || {},
+      isSecondRound: savedSession?.isSecondRound || false,
+      cardsReviewed: savedSession?.cardsReviewed || 0,
+      currentCardIndex: savedSession?.currentCardIndex || 0,
     };
 
     // Save the session first
