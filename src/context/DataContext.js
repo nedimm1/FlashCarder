@@ -49,20 +49,24 @@ export const DataProvider = ({ children }) => {
 
   // Save and update study session
   const updateStudySession = (deckId, sessionData) => {
-    const newSessions = {
-      ...studySessions,
-      [deckId]: sessionData,
-    };
-    setStudySessions(newSessions);
-    saveData(newSessions, "studySessions");
+    if (!sessionData) {
+      const newSessions = { ...studySessions };
+      delete newSessions[deckId];
+      setStudySessions(newSessions);
+      saveData(newSessions, "studySessions");
+    } else {
+      const newSessions = {
+        ...studySessions,
+        [deckId]: sessionData,
+      };
+      setStudySessions(newSessions);
+      saveData(newSessions, "studySessions");
+    }
   };
 
   // Clear study session
   const clearStudySession = (deckId) => {
-    const newSessions = { ...studySessions };
-    delete newSessions[deckId];
-    setStudySessions(newSessions);
-    saveData(newSessions, "studySessions");
+    updateStudySession(deckId, null);
   };
 
   if (isLoading) {

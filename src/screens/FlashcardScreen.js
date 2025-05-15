@@ -38,30 +38,20 @@ function FlashcardScreen({ route, navigation }) {
   const [isSecondRound, setIsSecondRound] = useState(false);
   const [cardsReviewed, setCardsReviewed] = useState(0);
 
-  // Load saved study session on mount
+  // Single effect to manage study session state
   useEffect(() => {
     const savedSession = studySessions[deckId];
-    if (savedSession && savedSession.cardsToReview.length > 0) {
+    if (savedSession && savedSession.cardsToReview?.length > 0) {
+      // Restore saved session
       setStudyMode(true);
       setCardsToReview(savedSession.cardsToReview);
-      setCardStatuses(savedSession.cardStatuses);
-      setIsSecondRound(savedSession.isSecondRound);
-      setCardsReviewed(savedSession.cardsReviewed);
-      setCurrentCardIndex(savedSession.currentCardIndex);
-    } else {
-      // If there are no cards to review, make sure we're not in study mode
-      setStudyMode(false);
-      setCardsToReview([]);
-      setCardStatuses({});
-      setIsSecondRound(false);
-      setCardsReviewed(0);
-      setCurrentCardIndex(0);
-      clearStudySession(deckId);
+      setCardStatuses(savedSession.cardStatuses || {});
+      setIsSecondRound(savedSession.isSecondRound || false);
+      setCardsReviewed(savedSession.cardsReviewed || 0);
+      setCurrentCardIndex(savedSession.currentCardIndex || 0);
     }
-  }, []);
 
-  // Save study session state when leaving
-  useEffect(() => {
+    // Cleanup: save session if in study mode
     return () => {
       if (studyMode && cardsToReview.length > 0) {
         updateStudySession(deckId, {
@@ -73,14 +63,7 @@ function FlashcardScreen({ route, navigation }) {
         });
       }
     };
-  }, [
-    studyMode,
-    cardsToReview,
-    cardStatuses,
-    isSecondRound,
-    cardsReviewed,
-    currentCardIndex,
-  ]);
+  }, [deckId]); // Only run on mount and cleanup
 
   // Animation values
   const position = new Animated.ValueXY();
@@ -219,14 +202,8 @@ function FlashcardScreen({ route, navigation }) {
             <TouchableOpacity
               style={[styles.button, styles.resetButton]}
               onPress={() => {
-                setStudyMode(false);
-                setCardsToReview([]);
-                setCurrentCardIndex(0);
-                setIsFlipped(false);
-                setIsSecondRound(false);
-                setCardStatuses({});
-                setCardsReviewed(0);
                 clearStudySession(deckId);
+                setStudyMode(false);
                 navigation.goBack();
               }}
             >
@@ -379,17 +356,32 @@ function FlashcardScreen({ route, navigation }) {
 
   // Reset study stats when starting study mode
   const startStudyMode = () => {
+    const newSession = {
+      cardsToReview: [...cards],
+      cardStatuses: {},
+      isSecondRound: false,
+      cardsReviewed: 0,
+      currentCardIndex: 0,
+    };
+
+    // Save the session first
+    updateStudySession(deckId, newSession);
+
+    // Then update local state
     setStudyMode(true);
-    setCardsToReview([...cards]);
-    setCurrentCardIndex(0);
+    setCardsToReview(newSession.cardsToReview);
+    setCurrentCardIndex(newSession.currentCardIndex);
     setIsFlipped(false);
-    setIsSecondRound(false);
-    setCardStatuses({});
-    setCardsReviewed(0);
+    setIsSecondRound(newSession.isSecondRound);
+    setCardStatuses(newSession.cardStatuses);
+    setCardsReviewed(newSession.cardsReviewed);
   };
 
-  // Update exit study mode to clear the session
-  const exitStudyMode = () => {
+  const handleInStudyExit = () => {
+    // First clear the session from storage
+    clearStudySession(deckId);
+
+    // Then reset all state
     setStudyMode(false);
     setCardsToReview([]);
     setCurrentCardIndex(0);
@@ -397,7 +389,23 @@ function FlashcardScreen({ route, navigation }) {
     setIsSecondRound(false);
     setCardStatuses({});
     setCardsReviewed(0);
+  };
+
+  const handleExitStudyMode = () => {
+    // First clear the session
     clearStudySession(deckId);
+
+    // Then reset all state
+    setStudyMode(false);
+    setCardsToReview([]);
+    setCurrentCardIndex(0);
+    setIsFlipped(false);
+    setIsSecondRound(false);
+    setCardStatuses({});
+    setCardsReviewed(0);
+
+    // Finally navigate back
+    navigation.goBack();
   };
 
   return (
@@ -567,16 +575,7 @@ function FlashcardScreen({ route, navigation }) {
       {studyMode ? (
         <TouchableOpacity
           style={flashcardStyles.exitButton}
-          onPress={() => {
-            setStudyMode(false);
-            setCardsToReview([]);
-            setCurrentCardIndex(0);
-            setIsFlipped(false);
-            setIsSecondRound(false);
-            setCardStatuses({});
-            setCardsReviewed(0);
-            clearStudySession(deckId);
-          }}
+          onPress={handleInStudyExit}
         >
           <Text style={flashcardStyles.buttonText}>Exit Study Mode</Text>
         </TouchableOpacity>
