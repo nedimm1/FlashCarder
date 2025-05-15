@@ -38,23 +38,50 @@ function FlashcardScreen({ route, navigation }) {
   const [isSecondRound, setIsSecondRound] = useState(false);
   const [cardsReviewed, setCardsReviewed] = useState(0);
 
-  // Single effect to manage study session state
+  // Effect to manage study session state and card updates
   useFocusEffect(
     React.useCallback(() => {
       const savedSession = studySessions[deckId];
-      if (savedSession && savedSession.cardsToReview?.length > 0) {
-        // Only restore session if we're not already in the same state
-        if (!studyMode || currentCardIndex !== savedSession.currentCardIndex) {
-          setStudyMode(true);
-          setCardsToReview(savedSession.cardsToReview);
-          setCardStatuses(savedSession.cardStatuses || {});
-          setIsSecondRound(savedSession.isSecondRound || false);
-          setCardsReviewed(savedSession.cardsReviewed || 0);
-          setCurrentCardIndex(savedSession.currentCardIndex || 0);
+      const currentDeck = decks.find((d) => d.id === deckId);
+
+      if (!currentDeck) return;
+
+      // Handle session restoration
+      if (
+        savedSession &&
+        savedSession.cardsToReview?.length > 0 &&
+        (!studyMode || currentCardIndex !== savedSession.currentCardIndex)
+      ) {
+        const sessionCards = savedSession.isSecondRound
+          ? savedSession.cardsToReview.map((card) => ({
+              ...card,
+              front: card.back,
+              back: card.front,
+              isReversed: true,
+            }))
+          : savedSession.cardsToReview;
+
+        // Batch state updates to prevent multiple re-renders
+        setStudyMode(true);
+        setCardsToReview(sessionCards);
+        setCardStatuses(savedSession.cardStatuses || {});
+        setIsSecondRound(savedSession.isSecondRound || false);
+        setCardsReviewed(savedSession.cardsReviewed || 0);
+        setCurrentCardIndex(savedSession.currentCardIndex || 0);
+      }
+      // Handle card updates for existing study session
+      else if (studyMode && cardsToReview.length > 0) {
+        const updatedCards = cardsToReview.map((card) => {
+          const updatedCard = currentDeck.cards.find((c) => c.id === card.id);
+          return updatedCard || card;
+        });
+
+        if (JSON.stringify(updatedCards) !== JSON.stringify(cardsToReview)) {
+          setCardsToReview(updatedCards);
         }
       }
 
-      // Cleanup: save session if in study mode and there are changes to save
+      // Cleanup: save session if in study mode
       return () => {
         if (studyMode && cardsToReview.length > 0) {
           const currentSession = studySessions[deckId];
@@ -66,8 +93,17 @@ function FlashcardScreen({ route, navigation }) {
               JSON.stringify(cardsToReview);
 
           if (hasChanges) {
+            const cardsToSave = isSecondRound
+              ? cardsToReview.map((card) => ({
+                  ...card,
+                  front: card.back,
+                  back: card.front,
+                  isReversed: false,
+                }))
+              : cardsToReview;
+
             updateStudySession(deckId, {
-              cardsToReview,
+              cardsToReview: cardsToSave,
               cardStatuses,
               isSecondRound,
               cardsReviewed,
@@ -76,17 +112,7 @@ function FlashcardScreen({ route, navigation }) {
           }
         }
       };
-    }, [
-      deckId,
-      studyMode,
-      cardsToReview,
-      cardStatuses,
-      isSecondRound,
-      cardsReviewed,
-      currentCardIndex,
-      studySessions,
-      updateStudySession,
-    ])
+    }, [deckId, decks, studyMode, cardsToReview.length, currentCardIndex])
   );
 
   // Animation values
@@ -109,25 +135,6 @@ function FlashcardScreen({ route, navigation }) {
   const incorrectCount = Object.values(cardStatuses).filter(
     (status) => status === "incorrect"
   ).length;
-
-  // Add this effect to update cards when the screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      // Find the current deck again to get fresh data
-      const updatedDeck = decks.find((d) => d.id === deckId);
-      if (updatedDeck) {
-        // If in study mode, update the cards to review while maintaining order
-        if (studyMode && cardsToReview.length > 0) {
-          const updatedCardsToReview = cardsToReview.map((card) => {
-            // Find the updated version of this card
-            const updatedCard = updatedDeck.cards.find((c) => c.id === card.id);
-            return updatedCard || card; // Use updated card if found, otherwise keep original
-          });
-          setCardsToReview(updatedCardsToReview);
-        }
-      }
-    }, [decks, deckId, studyMode])
-  );
 
   // Handle empty deck case
   if (cards.length === 0) {
@@ -206,18 +213,22 @@ function FlashcardScreen({ route, navigation }) {
             <TouchableOpacity
               style={[styles.button, styles.resetButton]}
               onPress={() => {
-                const reversedCards = cards.map((card) => ({
-                  ...card,
-                  front: card.back,
-                  back: card.front,
-                  isReversed: true,
-                }));
-                setCardsToReview(reversedCards);
+                // Start English round without reversing cards
+                setCardsToReview([...cards]);
                 setCurrentCardIndex(0);
                 setIsFlipped(false);
                 setIsSecondRound(true);
                 setCardStatuses({});
                 setCardsReviewed(0);
+
+                // Save the session for English round
+                updateStudySession(deckId, {
+                  cardsToReview: [...cards],
+                  cardStatuses: {},
+                  isSecondRound: true,
+                  cardsReviewed: 0,
+                  currentCardIndex: 0,
+                });
               }}
             >
               <Text style={styles.buttonText}>Start English Front Round</Text>
@@ -435,6 +446,17 @@ function FlashcardScreen({ route, navigation }) {
     navigation.goBack();
   };
 
+  // Get the current card text based on round and flip state
+  const getCardText = (card, isFlipped, isSecondRound) => {
+    if (isSecondRound) {
+      // In second round (English front), swap front and back
+      return isFlipped ? card.front : card.back;
+    } else {
+      // In first round (foreign language front)
+      return isFlipped ? card.back : card.front;
+    }
+  };
+
   return (
     <SafeAreaView style={flashcardStyles.container}>
       <View style={flashcardStyles.header}>
@@ -551,9 +573,9 @@ function FlashcardScreen({ route, navigation }) {
                 activeOpacity={0.9}
               >
                 <Text style={flashcardStyles.cardText}>
-                  {isFlipped ? currentCard.back : currentCard.front}
+                  {getCardText(currentCard, isFlipped, isSecondRound)}
                 </Text>
-                {!isFlipped && currentCard.pronunciation && (
+                {!isFlipped && currentCard.pronunciation && !isSecondRound && (
                   <Text style={flashcardStyles.pronunciationText}>
                     [{currentCard.pronunciation}]
                   </Text>
