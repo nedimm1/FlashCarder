@@ -11,6 +11,7 @@
     "preview": {
       "distribution": "internal",
       "android": {
+        "buildType": "apk",
         "env": {
           "ANDROID_HOME": "/Users/muhamedmuminovic/Library/Android/sdk"
         }

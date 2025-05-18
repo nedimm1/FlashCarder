@@ -92,7 +92,7 @@ function LanguageScreen({ route, navigation }) {
       if (!decks) return; // Guard against undefined decks
 
       const updatedDecks = decks.map((deck) => {
-        // If deck already has the new format, return as is
+        // If deck already has the new format, return as 
         if (deck.displayName) {
           return deck;
         }
