@@ -18,7 +18,7 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
   subHeaderText: {
-    fontSize: 20,
+    fontSize: 20.0,
     color: "#666",
     textAlign: "center",
     marginTop: 5,
