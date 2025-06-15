@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text } from "react-native";
-import { loadData, saveData } from "../utils/storage";
+import { loadData, saveData, clearStorage } from "../utils/storage";
 
 export const DataContext = React.createContext();
 
@@ -15,11 +15,13 @@ export const DataProvider = ({ children }) => {
 
     const fetchData = async () => {
       try {
-        const data = await loadData();
+        // Load existing data from storage
+        const savedDecks = await loadData("flashcards_data");
+        const savedSessions = await loadData("studySessions");
+
         if (isMounted) {
-          setDecks(data || []);
-          const sessions = await loadData("studySessions");
-          setStudySessions(sessions || {});
+          setDecks(savedDecks);
+          setStudySessions(savedSessions);
         }
       } catch (error) {
         console.error("Error loading data:", error);
@@ -42,25 +44,25 @@ export const DataProvider = ({ children }) => {
   }, []);
 
   // Save data whenever decks change
-  const updateDecks = (newDecks) => {
+  const updateDecks = async (newDecks) => {
     setDecks(newDecks || []);
-    saveData(newDecks || []);
+    await saveData(newDecks || [], "flashcards_data");
   };
 
   // Save and update study session
-  const updateStudySession = (deckId, sessionData) => {
+  const updateStudySession = async (deckId, sessionData) => {
     if (!sessionData) {
       const newSessions = { ...studySessions };
       delete newSessions[deckId];
       setStudySessions(newSessions);
-      saveData(newSessions, "studySessions");
+      await saveData(newSessions, "studySessions");
     } else {
       const newSessions = {
         ...studySessions,
         [deckId]: sessionData,
       };
       setStudySessions(newSessions);
-      saveData(newSessions, "studySessions");
+      await saveData(newSessions, "studySessions");
     }
   };
 

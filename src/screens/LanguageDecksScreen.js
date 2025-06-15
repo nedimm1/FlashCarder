@@ -5,96 +5,49 @@ import {
   View,
   TouchableOpacity,
   SafeAreaView,
-  FlatList,
-  Modal,
-  TextInput,
+  ScrollView,
   Alert,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { styles } from "../styles/styles";
 import { DataContext } from "../context/DataContext";
-import { saveData } from "../utils/storage";
 
-// Extend the imported styles with our additional styles
-Object.assign(styles, {
-  deckTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  studyBadge: {
-    backgroundColor: "#4CAF50",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 10,
-  },
-  studyBadgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-});
-
-function LanguageDecksScreen({ route, navigation }) {
-  const { language, displayName } = route.params;
-  const { decks, updateDecks, studySessions } = React.useContext(DataContext);
-  const [modalVisible, setModalVisible] = useState(false);
+export default function DecksScreen({ navigation }) {
+  const { decks, updateDecks } = React.useContext(DataContext);
+  const [isAddingDeck, setIsAddingDeck] = useState(false);
   const [newDeckTitle, setNewDeckTitle] = useState("");
 
-  // Filter decks by language code
-  const languageDecks = Array.isArray(decks)
-    ? decks.filter((deck) => deck.language === language)
-    : [];
+  const createDeck = () => {
+    if (!newDeckTitle.trim()) {
+      Alert.alert("Error", "Please enter a deck title");
+      return;
+    }
 
-  const handleDeleteLanguage = () => {
+    const newDeck = {
+      id: Date.now().toString(),
+      title: newDeckTitle.trim(),
+      cards: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedDecks = [...decks, newDeck];
+    updateDecks(updatedDecks);
+    setNewDeckTitle("");
+    setIsAddingDeck(false);
+  };
+
+  const deleteDeck = (deckId) => {
     Alert.alert(
-      "Delete Language",
-      `Are you sure you want to delete "${displayName}"? This will also delete all decks in this language.`,
+      "Delete Deck",
+      "Are you sure you want to delete this deck? This action cannot be undone.",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              // Remove all decks in this language
-              const updatedDecks = decks.filter(
-                (deck) => deck.language !== language
-              );
-
-              // Update decks state first
-              await saveData(updatedDecks);
-              updateDecks(updatedDecks);
-
-              // Get and update languages from storage
-              const stored = await AsyncStorage.getItem("languages");
-              if (stored) {
-                const languages = JSON.parse(stored);
-                const updatedLanguages = languages.filter(
-                  (lang) => lang.code !== language
-                );
-                await AsyncStorage.setItem(
-                  "languages",
-                  JSON.stringify(updatedLanguages)
-                );
-              }
-
-              // Ensure all state updates are complete before navigation
-              setTimeout(() => {
-                navigation.goBack();
-              }, 100);
-            } catch (error) {
-              console.error("Error deleting language:", error);
-              Alert.alert(
-                "Error",
-                "Failed to delete language. Please try again."
-              );
-            }
+          onPress: () => {
+            const updatedDecks = decks.filter((deck) => deck.id !== deckId);
+            updateDecks(updatedDecks);
           },
         },
       ]
@@ -103,146 +56,190 @@ function LanguageDecksScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerWithBack}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Arabic Flashcarder</Text>
         <TouchableOpacity
-          style={styles.backArrow}
-          onPress={() => navigation.goBack()}
+          style={styles.addButton}
+          onPress={() => setIsAddingDeck(true)}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="add" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerText}>{displayName}</Text>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => {
-                navigation.navigate("Languages", {
-                  editLanguage: { code: language, displayName },
-                });
-              }}
-            >
-              <Ionicons name="pencil" size={20} color="#4CAF50" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.subHeaderText}>Select a Deck</Text>
-        </View>
       </View>
 
-      <FlatList
-        data={languageDecks}
-        keyExtractor={(item) => item.id}
-        style={styles.deckList}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.deckItemContainer}
-            onPress={() =>
-              navigation.navigate("Flashcards", { deckId: item.id })
-            }
-          >
-            <View style={styles.deckContent}>
-              <View style={styles.deckTitleContainer}>
-                <Text style={styles.deckTitle}>{item.title}</Text>
-                {studySessions[item.id] && (
-                  <View style={styles.studyBadge}>
-                    <Text style={styles.studyBadgeText}>Study in Progress</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.deckSubtitle}>{item.cards.length} cards</Text>
-            </View>
+      {isAddingDeck && (
+        <View style={styles.addDeckContainer}>
+          <TextInput
+            style={styles.input}
+            value={newDeckTitle}
+            onChangeText={setNewDeckTitle}
+            placeholder="Enter deck title"
+            placeholderTextColor="#666"
+            autoFocus
+          />
+          <View style={styles.addDeckButtons}>
             <TouchableOpacity
-              style={styles.deckDeleteButton}
+              style={[styles.button, styles.cancelButton]}
               onPress={() => {
-                Alert.alert(
-                  "Delete Deck",
-                  `Are you sure you want to delete "${item.title}"?`,
-                  [
-                    {
-                      text: "Cancel",
-                      style: "cancel",
-                    },
-                    {
-                      text: "Delete",
-                      style: "destructive",
-                      onPress: () => {
-                        const updatedDecks = decks.filter(
-                          (d) => d.id !== item.id
-                        );
-                        updateDecks(updatedDecks);
-                      },
-                    },
-                  ]
-                );
+                setIsAddingDeck(false);
+                setNewDeckTitle("");
               }}
             >
-              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+              <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
-          </TouchableOpacity>
-        )}
-      />
-
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => setModalVisible(true)}
-      >
-        <Text style={styles.addButtonText}>+ Add New Deck</Text>
-      </TouchableOpacity>
-
-      {/* Modal for adding new deck */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Deck</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Deck Title"
-              value={newDeckTitle}
-              onChangeText={setNewDeckTitle}
-              placeholderTextColor="#999"
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: "#666" }]}
-                onPress={() => {
-                  setModalVisible(false);
-                  setNewDeckTitle("");
-                }}
-              >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: "#4CAF50" }]}
-                onPress={() => {
-                  if (newDeckTitle.trim()) {
-                    const newDeck = {
-                      id: Date.now().toString(),
-                      title: newDeckTitle,
-                      language: language,
-                      displayName: displayName,
-                      cards: [],
-                    };
-                    const updatedDecks = Array.isArray(decks)
-                      ? [...decks, newDeck]
-                      : [newDeck];
-                    updateDecks(updatedDecks);
-                    setNewDeckTitle("");
-                    setModalVisible(false);
-                  }
-                }}
-              >
-                <Text style={styles.buttonText}>Create</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.button, styles.createButton]}
+              onPress={createDeck}
+            >
+              <Text style={styles.buttonText}>Create</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      )}
+
+      <ScrollView style={styles.content}>
+        {decks.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              You don't have any decks yet.
+            </Text>
+            <Text style={styles.emptyStateSubtext}>
+              Tap the + button to create your first deck!
+            </Text>
+          </View>
+        ) : (
+          decks.map((deck) => (
+            <TouchableOpacity
+              key={deck.id}
+              style={styles.deckCard}
+              onPress={() =>
+                navigation.navigate("Flashcards", { deckId: deck.id })
+              }
+            >
+              <View style={styles.deckInfo}>
+                <Text style={styles.deckTitle}>{deck.title}</Text>
+                <Text style={styles.cardCount}>
+                  {deck.cards.length}{" "}
+                  {deck.cards.length === 1 ? "card" : "cards"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deleteDeck(deck.id)}
+              >
+                <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-export default LanguageDecksScreen;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    paddingTop: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  addDeckContainer: {
+    padding: 16,
+    backgroundColor: "#2a2a2a",
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  input: {
+    backgroundColor: "#333",
+    borderRadius: 8,
+    padding: 12,
+    color: "#fff",
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  addDeckButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  button: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  cancelButton: {
+    backgroundColor: "#666",
+  },
+  createButton: {
+    backgroundColor: "#4CAF50",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  deckCard: {
+    backgroundColor: "#2a2a2a",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  deckInfo: {
+    flex: 1,
+  },
+  deckTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  cardCount: {
+    fontSize: 14,
+    color: "#999",
+  },
+  deleteButton: {
+    padding: 8,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "#999",
+    textAlign: "center",
+  },
+});
