@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Import screens
-import LanguageScreen from "./src/screens/LanguageScreen";
 import LanguageDecksScreen from "./src/screens/LanguageDecksScreen";
 import FlashcardScreen from "./src/screens/FlashcardScreen";
 import AddCardScreen from "./src/screens/AddCardScreen";
@@ -23,14 +22,9 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <DataProvider>
         <NavigationContainer>
-          <Stack.Navigator initialRouteName="Languages">
+          <Stack.Navigator initialRouteName="Decks">
             <Stack.Screen
-              name="Languages"
-              component={LanguageScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="LanguageDecks"
+              name="Decks"
               component={LanguageDecksScreen}
               options={{ headerShown: false }}
             />

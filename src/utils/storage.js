@@ -5,19 +5,6 @@ import { Alert } from "react-native";
 export const STORAGE_KEY = "flashcards_data";
 export const STUDY_SESSIONS_KEY = "studySessions";
 
-// Initial data
-export const initialDecks = [];
-
-// Clear all data from storage
-export const clearStorage = async () => {
-  try {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    await AsyncStorage.removeItem(STUDY_SESSIONS_KEY);
-  } catch (error) {
-    console.error("Error clearing storage:", error);
-  }
-};
-
 // Save data to storage
 export const saveData = async (data, key = STORAGE_KEY) => {
   try {
@@ -32,14 +19,26 @@ export const saveData = async (data, key = STORAGE_KEY) => {
 export const loadData = async (key = STORAGE_KEY) => {
   try {
     const jsonValue = await AsyncStorage.getItem(key);
-    return jsonValue != null
-      ? JSON.parse(jsonValue)
-      : key === STORAGE_KEY
-      ? initialDecks
-      : {};
+    // Always return empty array/object if no data exists
+    if (!jsonValue) {
+      return key === STORAGE_KEY ? [] : {};
+    }
+    return JSON.parse(jsonValue);
   } catch (error) {
     console.error("Error loading data:", error);
     Alert.alert("Error", "Failed to load your data");
-    return key === STORAGE_KEY ? initialDecks : {};
+    return key === STORAGE_KEY ? [] : {};
+  }
+};
+
+// Clear all data from storage
+export const clearStorage = async () => {
+  try {
+    // Clear specific keys first
+    await AsyncStorage.multiRemove([STORAGE_KEY, STUDY_SESSIONS_KEY]);
+    // Clear everything else just to be safe
+    await AsyncStorage.clear();
+  } catch (error) {
+    console.error("Error clearing storage:", error);
   }
 };

@@ -16,7 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { styles } from "../styles/styles";
 import { DataContext } from "../context/DataContext";
-import { translateText, getLanguageCode } from "../services/translationService";
+import { translateText } from "../services/translationService";
 
 function AddCardScreen({ route, navigation }) {
   const { deckId } = route.params;
@@ -34,6 +34,13 @@ function AddCardScreen({ route, navigation }) {
   const deckIndex = decks.findIndex((d) => d.id === deckId);
   const deck = decks[deckIndex];
 
+  const getInputLabel = (isArabic) => {
+    if (isArabic) {
+      return `${isEnglishFirst ? "Back" : "Front"} (Arabic)`;
+    }
+    return `${isEnglishFirst ? "Front" : "Back"} (English)`;
+  };
+
   // Handle auto-translation
   useEffect(() => {
     let timeoutId;
@@ -45,16 +52,12 @@ function AddCardScreen({ route, navigation }) {
         setIsTranslating(true);
         const textToTranslate =
           translationDirection === "toEnglish" ? front : back;
-        const sourceLang =
-          translationDirection === "toEnglish" ? deck.language : "en";
-        const targetLang =
-          translationDirection === "toEnglish" ? "en" : deck.language;
 
         if (textToTranslate.trim()) {
           const translatedText = await translateText(
             textToTranslate,
-            sourceLang,
-            targetLang
+            translationDirection === "toEnglish" ? "ar" : "en",
+            translationDirection === "toEnglish" ? "en" : "ar"
           );
 
           if (translationDirection === "toEnglish") {
@@ -64,6 +67,7 @@ function AddCardScreen({ route, navigation }) {
           }
         }
       } catch (error) {
+        console.error("Translation failed:", error);
         Alert.alert(
           "Translation Error",
           "Failed to translate text. Please try again or enter text manually."
@@ -74,8 +78,9 @@ function AddCardScreen({ route, navigation }) {
       }
     };
 
+    // Add a longer delay to avoid rate limiting
     if (translationDirection) {
-      timeoutId = setTimeout(performTranslation, 1000);
+      timeoutId = setTimeout(performTranslation, 1500);
     }
 
     return () => {
@@ -83,7 +88,22 @@ function AddCardScreen({ route, navigation }) {
         clearTimeout(timeoutId);
       }
     };
-  }, [front, back, autoTranslate, translationDirection, deck.language]);
+  }, [front, back, autoTranslate, translationDirection]);
+
+  const handleTextChange = (text, isArabic) => {
+    if (isArabic) {
+      setFront(text);
+      if (autoTranslate && text.trim()) {
+        // Add a small delay before setting translation direction
+        setTimeout(() => setTranslationDirection("toEnglish"), 500);
+      }
+    } else {
+      setBack(text);
+      if (autoTranslate && text.trim()) {
+        setTimeout(() => setTranslationDirection("toTarget"), 500);
+      }
+    }
+  };
 
   const addCard = () => {
     if (front.trim() && back.trim()) {
@@ -93,9 +113,8 @@ function AddCardScreen({ route, navigation }) {
         back: isEnglishFirst ? front : back,
         example: example.trim() || null,
         pronunciation: pronunciation.trim() || null,
-        language: deck.language,
-        displayName: deck.displayName,
         isEnglishFirst: isEnglishFirst,
+        createdAt: new Date().toISOString(),
       };
 
       const updatedDeck = {
@@ -172,26 +191,28 @@ function AddCardScreen({ route, navigation }) {
             </View>
 
             <View style={addCardStyles.inputContainer}>
-              <Text style={addCardStyles.label}>
-                {isEnglishFirst ? "Back" : "Front"} ({deck.displayName})
-              </Text>
+              <Text style={addCardStyles.label}>{getInputLabel(true)}</Text>
               <TextInput
-                style={addCardStyles.input}
+                style={[
+                  addCardStyles.input,
+                  {
+                    textAlign: "right",
+                    writingDirection: "rtl",
+                    fontFamily: Platform.OS === "ios" ? "Arial" : "sans-serif",
+                    fontSize: 20,
+                  },
+                ]}
                 value={front}
-                onChangeText={(text) => {
-                  setFront(text);
-                  if (autoTranslate && text.trim()) {
-                    setTranslationDirection("toEnglish");
-                  }
-                }}
-                placeholder={`${deck.displayName} word or phrase`}
+                onChangeText={(text) => handleTextChange(text, true)}
+                placeholder="Write here..."
                 placeholderTextColor="#666"
                 multiline={true}
                 numberOfLines={4}
+                textAlignVertical="top"
               />
 
               <Text style={[addCardStyles.label, { marginTop: 15 }]}>
-                {isEnglishFirst ? "Front" : "Back"} (English)
+                {getInputLabel(false)}
               </Text>
               {isTranslating && (
                 <View style={addCardStyles.translatingContainer}>
@@ -202,44 +223,62 @@ function AddCardScreen({ route, navigation }) {
                 </View>
               )}
               <TextInput
-                style={addCardStyles.input}
+                style={[
+                  addCardStyles.input,
+                  {
+                    textAlign: "left",
+                    writingDirection: "ltr",
+                  },
+                ]}
                 value={back}
-                onChangeText={(text) => {
-                  setBack(text);
-                  if (autoTranslate && text.trim()) {
-                    setTranslationDirection("toTarget");
-                  }
-                }}
-                placeholder="English translation"
+                onChangeText={(text) => handleTextChange(text, false)}
+                placeholder="Enter English translation..."
                 placeholderTextColor="#666"
                 multiline={true}
                 numberOfLines={4}
+                textAlignVertical="top"
               />
 
               <Text style={[addCardStyles.label, { marginTop: 15 }]}>
                 Pronunciation (Optional)
               </Text>
               <TextInput
-                style={addCardStyles.input}
+                style={[
+                  addCardStyles.input,
+                  {
+                    height: 60,
+                    textAlign: "left",
+                  },
+                ]}
                 value={pronunciation}
                 onChangeText={setPronunciation}
-                placeholder="Enter pronunciation"
+                placeholder="Enter pronunciation..."
                 placeholderTextColor="#666"
                 multiline={true}
                 numberOfLines={2}
+                textAlignVertical="top"
               />
 
               <Text style={[addCardStyles.label, { marginTop: 15 }]}>
                 Example (Optional)
               </Text>
               <TextInput
-                style={addCardStyles.input}
+                style={[
+                  addCardStyles.input,
+                  {
+                    textAlign: "right",
+                    writingDirection: "rtl",
+                    fontFamily: Platform.OS === "ios" ? "Arial" : "sans-serif",
+                    fontSize: 18,
+                  },
+                ]}
                 value={example}
                 onChangeText={setExample}
-                placeholder="Enter an example sentence (optional)"
+                placeholder="Enter example..."
                 placeholderTextColor="#666"
                 multiline={true}
                 numberOfLines={4}
+                textAlignVertical="top"
               />
             </View>
           </View>
@@ -286,9 +325,10 @@ const addCardStyles = StyleSheet.create({
     padding: 15,
     color: "#fff",
     fontSize: 16,
-    height: 100,
+    minHeight: 100,
     textAlignVertical: "top",
     marginBottom: 15,
+    lineHeight: 24,
   },
   translatingContainer: {
     flexDirection: "row",

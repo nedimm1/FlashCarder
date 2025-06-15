@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "flashcarder01",
-    "slug": "flashcarder01",
+    "name": "ArabicFlashcarder",
+    "slug": "ArabicFlashcarder",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nedimmuminovic.flashcarder01",
+      "bundleIdentifier": "com.nedimmuminovic.arabicflashcarder",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.nedimmuminovic.flashcarder01",
+      "package": "com.nedimmuminovic.arabicflashcarder",
       "versionCode": 1
     },
     "web": {

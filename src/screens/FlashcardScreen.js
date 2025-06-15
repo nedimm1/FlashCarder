@@ -8,6 +8,8 @@ import {
   Animated,
   Dimensions,
   Alert,
+  I18nManager,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -457,6 +459,39 @@ function FlashcardScreen({ route, navigation }) {
     }
   };
 
+  const renderCardContent = (card, isFlipped, isSecondRound) => {
+    const text = getCardText(card, isFlipped, isSecondRound);
+    const isArabic = isSecondRound ? isFlipped : !isFlipped;
+
+    return (
+      <View style={flashcardStyles.cardContentInner}>
+        <Text
+          style={[
+            flashcardStyles.cardText,
+            isArabic && flashcardStyles.arabicText,
+          ]}
+        >
+          {text}
+        </Text>
+        {isArabic && card.pronunciation && (
+          <Text style={flashcardStyles.pronunciationText}>
+            [{card.pronunciation}]
+          </Text>
+        )}
+        {isArabic && card.example && (
+          <Text
+            style={[
+              flashcardStyles.exampleText,
+              isArabic && flashcardStyles.arabicExampleText,
+            ]}
+          >
+            {card.example}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={flashcardStyles.container}>
       <View style={flashcardStyles.header}>
@@ -544,7 +579,6 @@ function FlashcardScreen({ route, navigation }) {
                 <TouchableOpacity
                   style={flashcardStyles.editButton}
                   onPress={() => {
-                    // If in study mode, find the actual index of the card in the original deck
                     const currentCard = studyMode
                       ? cardsToReview[currentCardIndex]
                       : cards[currentCardIndex];
@@ -572,19 +606,7 @@ function FlashcardScreen({ route, navigation }) {
                 onPress={() => setIsFlipped(!isFlipped)}
                 activeOpacity={0.9}
               >
-                <Text style={flashcardStyles.cardText}>
-                  {getCardText(currentCard, isFlipped, isSecondRound)}
-                </Text>
-                {!isFlipped && currentCard.pronunciation && !isSecondRound && (
-                  <Text style={flashcardStyles.pronunciationText}>
-                    [{currentCard.pronunciation}]
-                  </Text>
-                )}
-                {isFlipped && currentCard.example && (
-                  <Text style={flashcardStyles.exampleText}>
-                    Example: {currentCard.example}
-                  </Text>
-                )}
+                {renderCardContent(currentCard, isFlipped, isSecondRound)}
               </TouchableOpacity>
 
               <Text style={flashcardStyles.flipHint}>Tap to flip</Text>
@@ -616,26 +638,28 @@ function FlashcardScreen({ route, navigation }) {
         </GestureHandlerRootView>
       </View>
 
-      <Text style={flashcardStyles.counter}>
-        Card {studyMode ? cardsReviewed + 1 : currentCardIndex + 1} of{" "}
-        {studyMode ? cardsToReview.length + cardsReviewed : cards.length}
-      </Text>
+      <View style={flashcardStyles.bottomContainer}>
+        <Text style={flashcardStyles.counter}>
+          Card {studyMode ? cardsReviewed + 1 : currentCardIndex + 1} of{" "}
+          {studyMode ? cardsToReview.length + cardsReviewed : cards.length}
+        </Text>
 
-      {studyMode ? (
-        <TouchableOpacity
-          style={flashcardStyles.exitButton}
-          onPress={handleInStudyExit}
-        >
-          <Text style={flashcardStyles.buttonText}>Exit Study Mode</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={flashcardStyles.studyButton}
-          onPress={startStudyMode}
-        >
-          <Text style={flashcardStyles.buttonText}>Start Studying</Text>
-        </TouchableOpacity>
-      )}
+        {studyMode ? (
+          <TouchableOpacity
+            style={flashcardStyles.exitButton}
+            onPress={handleInStudyExit}
+          >
+            <Text style={flashcardStyles.buttonText}>Exit Study Mode</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={flashcardStyles.studyButton}
+            onPress={startStudyMode}
+          >
+            <Text style={flashcardStyles.buttonText}>Start Studying</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -644,33 +668,34 @@ const flashcardStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#1a1a1a",
+    paddingTop: 20,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  backButton: {
-    padding: 10,
-    marginLeft: -10,
+    paddingTop: 20,
+    marginBottom: -10,
   },
   headerTextContainer: {
     flex: 1,
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 20,
     color: "#666",
     marginTop: 5,
+  },
+  backButton: {
+    padding: 10,
+    marginLeft: -10,
   },
   addButton: {
     padding: 10,
@@ -681,6 +706,7 @@ const flashcardStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
+    marginTop: 40,
   },
   card: {
     width: windowWidth - 40,
@@ -691,11 +717,11 @@ const flashcardStyles = StyleSheet.create({
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 5,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowOpacity: 0.5,
+    shadowRadius: 6.27,
+    elevation: 10,
   },
   cardActions: {
     position: "absolute",
@@ -707,42 +733,87 @@ const flashcardStyles = StyleSheet.create({
     zIndex: 1,
   },
   editButton: {
-    padding: 5,
+    padding: 8,
+    marginLeft: 8,
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderRadius: 8,
   },
   deleteButton: {
-    padding: 5,
+    padding: 8,
+    marginLeft: 8,
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    borderRadius: 8,
   },
   cardContent: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 50,
+    position: "relative",
+  },
+  cardContentInner: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
   cardText: {
     fontSize: 36,
-    color: "#fff",
     textAlign: "center",
+    color: "#fff",
     fontWeight: "500",
-    paddingHorizontal: 20,
+    writingDirection: "rtl",
+    fontFamily: Platform.OS === "ios" ? "Arial" : "sans-serif",
+  },
+  arabicText: {
+    fontSize: 48,
+    lineHeight: 60,
+    textAlign: "center",
+    writingDirection: "rtl",
+    color: "#fff",
+    fontFamily: Platform.OS === "ios" ? "Arial" : "sans-serif",
+  },
+  pronunciationText: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 5,
   },
   exampleText: {
-    fontSize: 16,
-    color: "#999",
+    fontSize: 20,
+    color: "#666",
     textAlign: "center",
-    marginTop: 20,
+    marginTop: 10,
+  },
+  arabicExampleText: {
+    fontSize: 24,
+    lineHeight: 36,
+    writingDirection: "rtl",
+    fontFamily: Platform.OS === "ios" ? "Arial" : "sans-serif",
   },
   flipHint: {
-    color: "#666",
+    position: "absolute",
+    bottom: 40,
+    left: 0,
+    right: 0,
     fontSize: 16,
+    color: "#666",
     textAlign: "center",
-    marginBottom: 10,
+  },
+  bottomContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: 30,
+    alignItems: "center",
   },
   counter: {
-    color: "#999",
-    fontSize: 16,
     textAlign: "center",
-    marginBottom: 15,
+    fontSize: 16,
+    color: "#666",
     fontWeight: "500",
+    marginBottom: 15,
   },
   navigationButtons: {
     position: "absolute",
@@ -768,20 +839,22 @@ const flashcardStyles = StyleSheet.create({
   },
   studyButton: {
     backgroundColor: "#4CAF50",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
     borderRadius: 10,
+    marginHorizontal: 20,
+    marginBottom: 30,
   },
   exitButton: {
     backgroundColor: "#2196F3",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
     borderRadius: 10,
+    marginHorizontal: 20,
+    marginBottom: 30,
   },
   buttonText: {
-    color: "#fff",
+    color: "white",
     fontSize: 18,
     fontWeight: "600",
     textAlign: "center",
@@ -792,12 +865,31 @@ const flashcardStyles = StyleSheet.create({
     marginTop: 5,
     textAlign: "center",
   },
-  pronunciationText: {
-    fontSize: 20,
+  completionContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  completionText: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 20,
+  },
+  completionSubtext: {
+    fontSize: 18,
     color: "#999",
     textAlign: "center",
     marginTop: 10,
-    fontStyle: "italic",
+    marginBottom: 30,
+  },
+  resetButton: {
+    backgroundColor: "#2196F3",
+    marginTop: 20,
+    width: "100%",
+    maxWidth: 300,
   },
 });
 
